@@ -47,7 +47,7 @@ const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHA
 let cloudUser=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
 let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
-const ownerNav=[["overview","⌂","Overview"],["properties","▦","Properties"],["rentals","$","Rentals"],["leaseGenerator","✎","Lease Generator"],["tenantAccounts","👤","Tenant Accounts"],["service","🛠","Service Requests"],["marketplace","⚒","Maintenance Marketplace"],["notifications","🔔","Notifications"],["automation","✦","Automation Agent"],["cameras","◉","Cameras"],["deals","↕","Buy & Sell"],["renovations","◇","Renovations"],["financials","↗","Financials"],["reports","▤","Reports & Tax Export"],["documents","▣","Documents"]]; const tenantNav=[["tenantHome","⌂","Home"],["tenantService","🛠","Maintenance"],["notifications","🔔","Notifications"]]; const contractorNav=[["contractorHome","⌂","Available Jobs"],["contractorMyJobs","⚒","My Jobs"],["contractorProfile","👤","Profile"],["notifications","🔔","Notifications"]];
+const ownerNav=[["overview","⌂","Overview"],["properties","▦","Properties"],["rentals","$","Rentals"],["leaseGenerator","✎","Lease Generator"],["tenantAccounts","👤","Tenant Accounts"],["service","🛠","Service Requests"],["marketplace","⚒","Maintenance Marketplace"],["notifications","🔔","Notifications"],["broadcasts","📣","Broadcast Center"],["automation","✦","Automation Agent"],["cameras","◉","Cameras"],["deals","↕","Buy & Sell"],["renovations","◇","Renovations"],["financials","↗","Financials"],["reports","▤","Reports & Tax Export"],["documents","▣","Documents"]]; const tenantNav=[["tenantHome","⌂","Home"],["tenantService","🛠","Maintenance"],["notifications","🔔","Notifications"]]; const contractorNav=[["contractorHome","⌂","Available Jobs"],["contractorMyJobs","⚒","My Jobs"],["contractorProfile","👤","Profile"],["notifications","🔔","Notifications"]];
 function navRender(){
   const nav=currentRole==="tenant"?(tenantSession?tenantNav:[]):currentRole==="contractor"?contractorNav:ownerNav;
   document.getElementById("desktopNav").innerHTML=nav.map(n=>'<button class="navbtn '+(view===n[0]?'active':'')+'" onclick="setView(\''+n[0]+'\')"><span>'+n[1]+'</span>'+n[2]+'</button>').join("");
@@ -189,6 +189,89 @@ function subscribeRealtime(){
 function notifyParty(party,title,message,meta={}){data.notifications.unshift({id:uid("n"),party,title,message,date:new Date().toISOString(),read:false,...meta});localStorage.setItem(KEY,JSON.stringify(data));try{if(Notification.permission==="granted"){new Notification(title,{body:message})}}catch(e){}}
 function requestDeviceNotifications(){if(!("Notification" in window)){alert("Notifications are not supported in this browser.");return}Notification.requestPermission().then(p=>alert(p==="granted"?"Notifications enabled.":"Notifications were not enabled."))}
 function notifications(){setHeader("Notifications","Updates for maintenance, bids, scheduling, completion and payment.");const roleParty=currentRole==="owner"?"owner":currentRole==="tenant"?"tenant":"contractor";const items=(data.notifications||[]).filter(n=>n.party===roleParty||n.party==="all");content.innerHTML='<div class="sectionbar"><div><b style="font-size:13px">Notification Center</b><div class="rowsub">Keep every party updated through the repair workflow.</div></div><button class="btn btn-primary" onclick="requestDeviceNotifications()">Enable Device Notifications</button></div><div class="card panel">'+(items.length?items.map(n=>'<div class="attnitem"><div class="attnicon">🔔</div><div class="attntext"><b>'+esc(n.title)+'</b><span>'+esc(n.message)+'</span></div><div class="attnright">'+new Date(n.date).toLocaleString()+'</div></div>').join(""):'<div class="empty">No notifications yet.</div>')+'</div>'}
+
+async function broadcasts(){
+  setHeader("Broadcast Center","Send private notices to all tenants, a property, or selected tenants without exposing recipient identities.");
+  if(!cloudUser){
+    content.innerHTML='<div class="card panel"><div class="empty">Sign in to PropertyWorks Cloud to use tenant broadcasts across devices.</div></div>';
+    return;
+  }
+  content.innerHTML='<div class="card panel"><div class="empty">Loading tenant recipients…</div></div>';
+  const ta=await supabaseClient.from("tenant_assignments").select("id,tenant_user_id,property_id,unit,active").eq("owner_id",cloudUser.id).eq("active",true);
+  if(ta.error){content.innerHTML='<div class="card panel"><div class="empty">Unable to load tenants: '+esc(ta.error.message)+'</div></div>';return}
+  const ids=[...new Set((ta.data||[]).map(x=>x.tenant_user_id).filter(Boolean))];
+  let profiles=[];
+  if(ids.length){
+    const pr=await supabaseClient.from("profiles").select("id,full_name,phone").in("id",ids);
+    if(!pr.error)profiles=pr.data||[];
+  }
+  const pmap=Object.fromEntries(profiles.map(p=>[p.id,p]));
+  const tenants=(ta.data||[]).map(a=>({assignmentId:a.id,userId:a.tenant_user_id,propertyId:a.property_id,unit:a.unit||"",name:pmap[a.tenant_user_id]?.full_name||"Tenant"}));
+  window.broadcastTenants=tenants;
+  const propOptions='<option value="all">All properties</option>'+data.properties.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");
+  content.innerHTML='<div class="kpis">'+metric("Active Recipients",tenants.length,"Cloud tenant accounts","👤")+metric("Properties",new Set(tenants.map(t=>t.propertyId)).size,"With active tenants","⌂")+metric("Privacy","Private delivery","Recipients never see each other","🔒")+metric("Delivery","In-app + realtime","Push when enabled","🔔")+'</div>'+
+  '<div class="card panel" style="margin-top:16px"><div class="panelhead"><div><h3>Create Broadcast</h3><p>Use for pest control, inspections, planned work, water shutoffs, emergencies and general building notices.</p></div></div>'+
+  '<div class="formgrid">'+
+  '<div class="field"><label>Notice type</label><select id="bcCategory"><option>Scheduled Maintenance</option><option>Pest Control</option><option>Inspection</option><option>Water / Utility Notice</option><option>Emergency</option><option>General Notice</option></select></div>'+
+  '<div class="field"><label>Urgency</label><select id="bcUrgency"><option>Normal</option><option>Important</option><option>Urgent</option><option>Emergency</option></select></div>'+
+  '<div class="field"><label>Target</label><select id="bcTarget" onchange="broadcastTargetChanged()"><option value="all">All tenants — all properties</option><option value="property">One property</option><option value="selected">Pick individual tenants</option></select></div>'+
+  '<div class="field"><label>Property</label><select id="bcProperty" onchange="renderBroadcastRecipients()">'+propOptions+'</select></div>'+
+  '<div class="field"><label>Title</label><input id="bcTitle" placeholder="Example: Pest control scheduled Friday"></div>'+
+  '<div class="field"><label>Scheduled date/time (optional)</label><input id="bcScheduled" type="datetime-local"></div>'+
+  '<div class="field full"><label>Message</label><textarea id="bcMessage" placeholder="Enter the notice tenants should receive."></textarea></div>'+
+  '<div class="field full"><div class="privacy-note"><b>Recipient privacy:</b> PropertyWorks sends a separate private notification to each selected tenant. No tenant receives a list of names, emails, apartments or other recipients.</div></div>'+
+  '<div class="field full" id="bcRecipients"></div>'+
+  '<div class="field full"><button type="button" class="btn btn-primary" onclick="sendBroadcast()">Send Broadcast</button></div>'+
+  '</div></div>';
+  renderBroadcastRecipients();
+}
+function broadcastTargetChanged(){renderBroadcastRecipients()}
+function broadcastFilteredTenants(){
+  const all=window.broadcastTenants||[];
+  const target=document.getElementById("bcTarget")?.value||"all";
+  const propertyId=document.getElementById("bcProperty")?.value||"all";
+  if(target==="all")return all;
+  if(target==="property")return propertyId==="all"?all:all.filter(t=>t.propertyId===propertyId);
+  return propertyId==="all"?all:all.filter(t=>t.propertyId===propertyId);
+}
+function renderBroadcastRecipients(){
+  const wrap=document.getElementById("bcRecipients");if(!wrap)return;
+  const target=document.getElementById("bcTarget")?.value||"all";
+  const list=broadcastFilteredTenants();
+  if(target!=="selected"){
+    wrap.innerHTML='<div class="checkitem"><b>'+list.length+' tenant'+(list.length===1?"":"s")+' selected</b><span>'+ (target==="all"?"All active tenants across all properties":"All active tenants at the selected property") +'</span></div>';
+    return;
+  }
+  wrap.innerHTML='<label>Select tenants</label><div class="checklist">'+(list.length?list.map(t=>'<label class="checkitem"><input class="bcTenantCheck" type="checkbox" value="'+esc(t.userId)+'" checked> <b>'+esc(t.name)+'</b><span>'+esc(prop(t.propertyId)?.name||"")+(t.unit?" — Unit "+esc(t.unit):"")+'</span></label>').join(""):'<div class="empty">No active cloud tenant accounts found.</div>')+'</div>';
+}
+async function sendBroadcast(){
+  if(!cloudUser){alert("Sign in to PropertyWorks Cloud first.");return}
+  const title=(document.getElementById("bcTitle")?.value||"").trim();
+  const message=(document.getElementById("bcMessage")?.value||"").trim();
+  const category=document.getElementById("bcCategory")?.value||"General Notice";
+  const urgency=document.getElementById("bcUrgency")?.value||"Normal";
+  const scheduled=document.getElementById("bcScheduled")?.value||null;
+  const target=document.getElementById("bcTarget")?.value||"all";
+  if(!title||!message){alert("Enter a title and message.");return}
+  let tenants=broadcastFilteredTenants();
+  if(target==="selected"){
+    const selected=[...document.querySelectorAll(".bcTenantCheck:checked")].map(x=>x.value);
+    tenants=tenants.filter(t=>selected.includes(t.userId));
+  }
+  const unique=[...new Map(tenants.map(t=>[t.userId,t])).values()];
+  if(!unique.length){alert("Select at least one tenant.");return}
+  const br=await supabaseClient.from("broadcasts").insert({owner_id:cloudUser.id,title,message,category,urgency,scheduled_for:scheduled?new Date(scheduled).toISOString():null}).select().single();
+  if(br.error){alert("Broadcast could not be created: "+br.error.message);return}
+  const recipients=unique.map(t=>({broadcast_id:br.data.id,owner_id:cloudUser.id,tenant_user_id:t.userId,property_id:t.propertyId,delivered_at:new Date().toISOString()}));
+  const rr=await supabaseClient.from("broadcast_recipients").insert(recipients);
+  if(rr.error){alert("Recipient delivery failed: "+rr.error.message);return}
+  const notices=unique.map(t=>({user_id:t.userId,title:(urgency==="Emergency"?"EMERGENCY: ":"")+title,message}));
+  const nr=await supabaseClient.from("notifications").insert(notices);
+  if(nr.error){alert("Broadcast created, but tenant notifications failed: "+nr.error.message);return}
+  notifyParty("owner","Broadcast sent",title+" was sent privately to "+unique.length+" tenant"+(unique.length===1?"":"s")+".");
+  alert("Broadcast sent privately to "+unique.length+" tenant"+(unique.length===1?"":"s")+".");
+  await broadcasts();
+}
 function automation(){setHeader("Automation Agent","Automatically prepare contractor outreach and keep the workflow moving.");const a=data.automation;content.innerHTML='<div class="card panel"><div class="panelhead"><div><h3>Maintenance Automation Agent</h3><p>Reacts to tenant requests and contractor activity.</p></div><span class="chip good">Active</span></div><div class="kv"><span>Notify owner when tenant submits request</span><b>'+ (a.autoNotifyOwner?"ON":"OFF") +'</b></div><div class="kv"><span>Prepare social-media job post when sent for bids</span><b>'+ (a.autoPrepareSocial?"ON":"OFF") +'</b></div><div class="kv"><span>Notify matching existing contractors</span><b>'+ (a.autoNotifyContractors?"ON":"OFF") +'</b></div><div class="kv"><span>Notify tenant at scheduling/completion stages</span><b>'+ (a.autoNotifyTenant?"ON":"OFF") +'</b></div><div class="privacy-note">The agent can prepare posts and open your share sheet, but Facebook does not allow PropertyWorks to silently post into arbitrary Marketplace listings or private community groups on your behalf. You stay in control of the final Facebook share.</div></div>'}function metric(label,value,foot,icon){return '<div class="card kpi"><div class="kpihead"><div class="kpilabel">'+label+'</div><div class="kpiicon">'+icon+'</div></div><div class="kpivalue">'+value+'</div><div class="kpifoot">'+foot+'</div></div>'}
 function overview(){setHeader("Overview","Your entire real estate operation in one place.");const income=data.payments.filter(x=>x.status==="Paid").reduce((a,b)=>a+(+b.amount||0),0)||18000,exp=data.expenses.reduce((a,b)=>a+(+b.amount||0),0),units=data.properties.reduce((a,b)=>a+(+b.units||0),0),occ=data.properties.reduce((a,b)=>a+(+b.occupied||0),0),open=data.maintenance.filter(x=>x.status!=="Completed").length;content.innerHTML='<div class="kpis">'+metric("Monthly Income",money(income),"Portfolio rental income","$")+metric("Occupancy",Math.round(occ/units*100)+"%",occ+" of "+units+" units occupied","⌂")+metric("Open Items",open,"Maintenance requiring attention","!")+metric("Net Cash Flow",money(income-exp),"Recorded income less expenses","↗")+'</div><div class="grid2"><div class="card panel"><div class="panelhead"><div><h3>Portfolio Cash Flow</h3><p>Income versus operating expenses</p></div><span class="chip good">6 months</span></div>'+chart()+'</div><div class="card panel"><div class="panelhead"><div><h3>Needs Attention</h3><p>Priority items across your portfolio</p></div><span class="chip">'+(open+2)+' items</span></div><div class="attn"><div class="attnitem"><div class="attnicon">▤</div><div class="attntext"><b>Review lease renewals</b><span>Check upcoming expirations</span></div><div class="attnright">This week</div></div>'+data.maintenance.filter(x=>x.status!=="Completed").slice(0,2).map(m=>'<div class="attnitem"><div class="attnicon">◇</div><div class="attntext"><b>'+esc(m.title)+'</b><span>'+esc(prop(m.propertyId)?.name||"")+' · '+esc(m.priority)+'</span></div><div class="attnright">'+esc(m.status)+'</div></div>').join("")+'<div class="attnitem"><div class="attnicon">$</div><div class="attntext"><b>Reconcile monthly rent</b><span>Tenant + subsidy portions</span></div><div class="attnright">Monthly</div></div></div></div></div><div class="propertygrid">'+data.properties.map(propertyCard).join("")+'</div>'}
 function chart(){const max=Math.max(...data.chart.flatMap(x=>[x.i,x.e]));return '<div class="chart">'+data.chart.map(x=>'<div class="monthgroup"><div class="bar income" style="height:'+Math.round(x.i/max*100)+'%"></div><div class="bar expense" style="height:'+Math.round(x.e/max*100)+'%"></div><span class="mlabel">'+x.m+'</span></div>').join("")+'</div><div class="legend"><span><i class="l1"></i>Income</span><span><i class="l2"></i>Expenses</span></div>'}
@@ -449,7 +532,7 @@ function contractorProfile(){setHeader("Contractor Profile","Manage trade specia
 
 function cameras(){setHeader("Cameras","Owner-only property camera dashboard.");content.innerHTML='<div class="card panel"><div class="panelhead"><div><h3>Camera Integrations</h3><p>Reserved for owner/admin access only.</p></div><span class="chip">Coming soon</span></div><div class="empty">This area is intentionally not available to tenant accounts. Future Ring or other supported camera integrations can be connected here.</div></div>'}
 function switchRole(role){currentRole=role;localStorage.setItem("propertyworks_role",role);view=role==="tenant"?(tenantSession?"tenantHome":"tenantAuth"):role==="contractor"?"contractorHome":"overview";render()}
-function render(){navRender();const routes=currentRole==="tenant"?{tenantAuth,tenantHome,tenantService,notifications}:currentRole==="contractor"?{contractorHome,contractorMyJobs,contractorProfile,notifications}:{overview,properties,rentals,leaseGenerator,tenantAccounts,service,marketplace,notifications,automation,cameras,deals,renovations,financials,reports,documents};(routes[view]|| (currentRole==="tenant"?(tenantSession?tenantHome:tenantAuth):currentRole==="contractor"?contractorHome:overview))()}function setView(v){view=v;render()}
+function render(){navRender();const routes=currentRole==="tenant"?{tenantAuth,tenantHome,tenantService,notifications}:currentRole==="contractor"?{contractorHome,contractorMyJobs,contractorProfile,notifications}:{overview,properties,rentals,leaseGenerator,tenantAccounts,service,marketplace,notifications,broadcasts,automation,cameras,deals,renovations,financials,reports,documents};(routes[view]|| (currentRole==="tenant"?(tenantSession?tenantHome:tenantAuth):currentRole==="contractor"?contractorHome:overview))()}function setView(v){view=v;render()}
 function opts(arr){return arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join("")}function field(label,name,type="text",extra=""){return '<div class="field"><label>'+label+'</label><input name="'+name+'" type="'+type+'" '+extra+'></div>'}function select(label,name,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options+'</select></div>'}function area(label,name){return '<div class="field full"><label>'+label+'</label><textarea name="'+name+'"></textarea></div>'}function modal(title,eyebrow,body,fn){modalTitle.textContent=title;modalEyebrow.textContent=eyebrow;modalBody.innerHTML='<div class="formgrid">'+body+'</div>';dlg.showModal();form.onsubmit=e=>{e.preventDefault();fn(Object.fromEntries(new FormData(e.target).entries()));dlg.close()}}
 function quickAdd(){modal("What do you want to add?","QUICK ADD",select("Record type","kind",'<option value="property">Property</option><option value="payment">Rent payment</option><option value="tenant">Tenant</option><option value="lease">Lease</option><option value="service">Tenant service request</option><option value="invite">Tenant invitation</option><option value="contractor">Contractor profile</option><option value="deal">Buy/Sell deal</option><option value="reno">Renovation</option><option value="expense">Expense</option><option value="document">Document</option>'),o=>setTimeout(()=>({property:addProperty,payment:addPayment,tenant:addTenant,lease:addLease,service:tenantRepairForm,invite:createTenantInvite,contractor:contractorProfileForm,deal:addDeal,reno:addRenovation,expense:addExpense,document:addDocument}[o.kind]()),40))}
 function addProperty(){modal("Add Property","PROPERTY",field("Name","name")+field("Address","address")+field("Type","type")+field("Units","units","number",'min="1" value="1"')+field("Occupied units","occupied","number",'min="0" value="0"')+field("Monthly rent","rent","number",'min="0"'),o=>{data.properties.push({id:uid("p"),...o,units:+o.units,occupied:+o.occupied,rent:+o.rent||0});save()})}
