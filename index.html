@@ -91,9 +91,16 @@ function cloudAccountModal(){
     else adminActivationModal();
     return
   }
-  modal("PropertyWorks Admin Cloud","ADMIN SIGN IN",
-    field("Email","email","email")+field("Password","password","password")+
-    '<div class="field full"><div class="privacy-note">This login is for Jeff, Lana, or another approved PropertyWorks administrator. Tenant accounts are created only through landlord invitations.</div></div><div class="field full"><button type="button" class="btn btn-soft" onclick="cloudCreateAccount()">Create Admin Account</button></div>',
+  modal("PropertyWorks Admin Cloud","CHOOSE ACTION",
+    '<div class="field full"><button type="button" class="btn btn-primary" onclick="cloudAdminSignInForm()">Sign In to Admin Cloud</button></div>'+
+    '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudCreateAccount()">Create Admin Account</button></div>'+
+    '<div class="field full"><div class="privacy-note">Admin accounts are for Jeff, Lana, or another approved PropertyWorks administrator. Tenant accounts are invitation-only and do not use this screen.</div></div>',
+    ()=>{}
+  )
+}
+function cloudAdminSignInForm(){
+  modal("Admin Sign In","PROPERTYWORKS CLOUD",
+    field("Email","email","email")+field("Password","password","password"),
     async o=>{await cloudSignIn(o.email,o.password)}
   )
 }
@@ -101,6 +108,16 @@ async function cloudSignIn(email,password){
   const {data,error}=await supabaseClient.auth.signInWithPassword({email:email.trim(),password});
   if(error){alert(error.message+"\n\nIf this is your first time, use Create Admin Account.");return}
   cloudUser=data.user; await loadCloudProfile(); updateCloudButton();
+  if(!["owner","admin"].includes(cloudProfileRole)){
+    const pending=localStorage.getItem("propertyworks_pending_admin_code");
+    if(pending){
+      const claim=await supabaseClient.from("admin_setup_claims").insert({user_id:data.user.id,code:pending});
+      if(!claim.error){
+        localStorage.removeItem("propertyworks_pending_admin_code");
+        await loadCloudProfile();updateCloudButton();
+      }
+    }
+  }
   if(!["owner","admin"].includes(cloudProfileRole)){
     alert("Your email is confirmed. Enter the PropertyWorks Admin Setup Code to activate this account for Jeff/Lana.");
     adminActivationModal(); return
@@ -110,8 +127,15 @@ async function cloudSignIn(email,password){
 async function cloudCreateAccount(){
   if(currentRole!=="owner"){alert("Only a landlord/admin can create an admin account.");return}
   modal("Create Admin Account","JEFF / LANA ADMIN",
-    field("Full name","fullName")+field("Email","email","email")+field("Password","password","password"),
+    field("Full name","fullName")+
+    field("Email","email","email")+
+    field("Password","password","password")+
+    field("Confirm password","confirmPassword","password")+
+    field("Admin Setup Code","setupCode")+
+    '<div class="field full"><div class="privacy-note">This setup code is only for Jeff and Lana. Tenant accounts are created from invitations and never use this form.</div></div>',
     async o=>{
+      if(!o.fullName||!o.email||!o.password||!o.confirmPassword||!o.setupCode){alert("Complete all five fields.");return}
+      if(o.password!==o.confirmPassword){alert("Passwords do not match.");return}
       if((o.password||"").length<8){alert("Use a password with at least 8 characters.");return}
       const {data,error}=await supabaseClient.auth.signUp({
         email:o.email.trim(),
@@ -120,11 +144,19 @@ async function cloudCreateAccount(){
       });
       if(error){alert(error.message);return}
       if(data.session){
-        cloudUser=data.user; await loadCloudProfile(); updateCloudButton();
-        alert("Admin account created. Now enter the Admin Setup Code to activate owner access.");
-        adminActivationModal();
+        cloudUser=data.user;
+        await loadCloudProfile();
+        const claim=await supabaseClient.from("admin_setup_claims").insert({user_id:data.user.id,code:o.setupCode.trim().toUpperCase()});
+        if(claim.error){alert("Account created, but admin activation failed: "+claim.error.message);return}
+        await loadCloudProfile();updateCloudButton();
+        if(["owner","admin"].includes(cloudProfileRole)){
+          subscribeRealtime();
+          alert("Admin account created and activated successfully.");
+          await cloudPullOwnerData();
+        }
       }else{
-        alert("Admin account created. Check your email to confirm it. After confirmation, return to PropertyWorks, sign in, and enter the Admin Setup Code.");
+        localStorage.setItem("propertyworks_pending_admin_code",o.setupCode.trim().toUpperCase());
+        alert("Admin account created. Check your email to confirm it. Then return to PropertyWorks and sign in; the app will finish admin activation.");
       }
     }
   )
