@@ -91,12 +91,7 @@ function cloudAccountModal(){
     else adminActivationModal();
     return
   }
-  modal("PropertyWorks Admin Cloud","CHOOSE ACTION",
-    '<div class="field full"><button type="button" class="btn btn-primary" onclick="cloudAdminSignInForm()">Sign In to Admin Cloud</button></div>'+
-    '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudCreateAccount()">Create Admin Account</button></div>'+
-    '<div class="field full"><div class="privacy-note">Admin accounts are for Jeff, Lana, or another approved PropertyWorks administrator. Tenant accounts are invitation-only and do not use this screen.</div></div>',
-    ()=>{}
-  )
+  cloudCreateAccount();
 }
 function cloudAdminSignInForm(){
   modal("Admin Sign In","PROPERTYWORKS CLOUD",
@@ -132,7 +127,8 @@ async function cloudCreateAccount(){
     field("Password","password","password")+
     field("Confirm password","confirmPassword","password")+
     field("Admin Setup Code","setupCode")+
-    '<div class="field full"><div class="privacy-note">This setup code is only for Jeff and Lana. Tenant accounts are created from invitations and never use this form.</div></div>',
+    '<div class="field full"><div class="privacy-note">This setup code is only for Jeff and Lana. Tenant accounts are created from invitations and never use this form.</div></div>'+
+    '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudAdminSignInForm()">Already have an admin account? Sign in</button></div>',
     async o=>{
       if(!o.fullName||!o.email||!o.password||!o.confirmPassword||!o.setupCode){alert("Complete all five fields.");return}
       if(o.password!==o.confirmPassword){alert("Passwords do not match.");return}
