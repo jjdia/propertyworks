@@ -35,7 +35,7 @@ dialog{width:min(660px,92vw);max-height:88dvh;overflow:auto;border:0;border-radi
 <body>
 <div class="app">
 <aside class="sidebar"><div class="brand"><div class="brandmark">PW</div><div><h1>PropertyWorks</h1><small>Real Estate Command Center</small></div></div><nav class="nav" id="desktopNav"></nav><div class="sidefoot"><div class="portfolio-mini"><b>Staten Island Portfolio</b><p>Manage · Buy · Sell · Renovate · Grow</p></div></div></aside>
-<main class="main"><header class="topbar"><div><h2 id="pageTitle">Overview</h2><p id="pageSub">Your entire real estate operation in one place.</p></div><div class="actions"><button id="cloudBtn" class="btn btn-soft" onclick="cloudAccountModal()">☁ Cloud</button><select id="roleSelect" class="role-select" onchange="switchRole(this.value)"><option value="owner">Owner / Admin</option><option value="tenant">Tenant View</option><option value="contractor">Technician / Handyman</option></select><button id="exportBtn" class="btn btn-soft" onclick="exportData()">Export</button><button id="addNewBtn" class="btn btn-primary" onclick="quickAdd()">＋ Add New</button></div></header><section class="content" id="content"></section></main>
+<main class="main"><header class="topbar"><div><h2 id="pageTitle">Overview</h2><p id="pageSub">Your entire real estate operation in one place.</p></div><div class="actions"><button id="cloudBtn" class="btn btn-soft" onclick="setView('accountCenter')">👤 Account</button><select id="roleSelect" class="role-select" onchange="switchRole(this.value)"><option value="owner">Owner / Admin</option><option value="tenant">Tenant View</option><option value="contractor">Technician / Handyman</option></select><button id="exportBtn" class="btn btn-soft" onclick="exportData()">Export</button><button id="addNewBtn" class="btn btn-primary" onclick="quickAdd()">＋ Add New</button></div></header><section class="content" id="content"></section></main>
 </div>
 <nav class="mobilebar" id="mobileNav"></nav>
 <dialog id="dlg"><form method="dialog" id="form" class="modal"><div class="modalhead"><div><small id="modalEyebrow">NEW</small><h3 id="modalTitle">Add</h3></div><button value="cancel" class="close">×</button></div><div id="modalBody"></div><div class="modalactions"><button value="cancel" class="btn btn-soft">Cancel</button><button value="default" class="btn btn-primary">Save</button></div></form></dialog>
@@ -57,7 +57,7 @@ function navRender(){
   const ab=document.getElementById("addNewBtn");
   if(rs) rs.value=currentRole;
   if(eb) eb.style.display=currentRole==="owner"?"":"none";
-  const cb=document.getElementById("cloudBtn"); if(cb) cb.style.display=currentRole==="owner"?"":"none";
+  const cb=document.getElementById("cloudBtn"); if(cb) cb.style.display="";
   if(ab){
     ab.textContent=currentRole==="tenant"?(tenantSession?"＋ Request Repair":"Sign In"):currentRole==="contractor"?"＋ Contractor Profile":"＋ Add New";
     ab.onclick=currentRole==="tenant"?(tenantSession?tenantRepairForm:tenantLoginModal):currentRole==="contractor"?contractorProfileForm:quickAdd;
@@ -72,6 +72,12 @@ async function initCloud(){
   if(cloudUser && ["owner","admin"].includes(cloudProfileRole)){
     subscribeRealtime();
   }
+  supabaseClient.auth.onAuthStateChange(async(event,session)=>{
+    cloudUser=session?.user||null;
+    if(cloudUser) await loadCloudProfile(); else cloudProfileRole=null;
+    updateCloudButton();
+    if(view==="accountCenter") render();
+  });
 }
 async function loadCloudProfile(){
   if(!cloudUser){cloudProfileRole=null;return}
@@ -80,9 +86,38 @@ async function loadCloudProfile(){
 }
 function updateCloudButton(){
   const b=document.getElementById("cloudBtn"); if(!b)return;
-  if(!cloudUser){b.textContent="☁ Admin Cloud";b.style.background="";b.style.color="";return}
-  if(!["owner","admin"].includes(cloudProfileRole)){b.textContent="⚿ Activate Admin";b.style.background="#fff4d6";b.style.color="#7a5200";return}
-  b.textContent="☁ Admin Synced";b.style.background="#e8f5ef";b.style.color="#176b4d";
+  if(!cloudUser){b.textContent="👤 Account";b.style.background="";b.style.color="";return}
+  if(!["owner","admin"].includes(cloudProfileRole)){b.textContent="👤 Account • Pending";b.style.background="#fff4d6";b.style.color="#7a5200";return}
+  b.textContent="👤 "+(cloudUser.email?cloudUser.email.split("@")[0]:"Admin");b.style.background="#e8f5ef";b.style.color="#176b4d";
+}
+
+function accountCenter(){
+  setHeader("Account & Profiles","Sign in, sign up, switch PropertyWorks profiles, and manage your session.");
+  const pending=localStorage.getItem("propertyworks_admin_signup_state")==="awaiting_confirmation";
+  const pendingEmail=localStorage.getItem("propertyworks_pending_admin_email")||"";
+  let statusHtml="";
+  if(cloudUser && ["owner","admin"].includes(cloudProfileRole)){
+    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Signed In</h3><p>'+esc(cloudUser.email||"Admin account")+'</p></div><span class="chip good">Admin Active</span></div><div class="kv"><span>Profile</span><b>'+esc(cloudProfileRole||"admin")+'</b></div><div class="job-actions"><button class="btn btn-soft" onclick="cloudPullOwnerData()">Sync Now</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
+  }else if(cloudUser){
+    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Account Needs Activation</h3><p>'+esc(cloudUser.email||"")+'</p></div><span class="chip warn">Pending</span></div><div class="privacy-note">Your account exists. Activate admin access with the Jeff/Lana setup code. You do not need to create another account.</div><div class="job-actions"><button class="btn btn-primary" onclick="adminActivationModal()">Activate Admin</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
+  }else if(pending){
+    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Account Created</h3><p>'+esc(pendingEmail||"Your admin email")+'</p></div><span class="chip warn">Email Confirmation Needed</span></div><div class="privacy-note"><b>Do not create another account.</b><br>Your account already exists. Open the confirmation email from PropertyWorks/Supabase, confirm the address, then come back here and tap Sign In.</div><div class="job-actions"><button class="btn btn-primary" onclick="cloudAdminSignInForm()">Sign In</button><button class="btn btn-soft" onclick="cloudCreateAccount()">Use a Different Email / Sign Up</button></div></div>';
+  }else{
+    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>PropertyWorks Account</h3><p>Choose how you want to continue.</p></div></div><div class="job-actions"><button class="btn btn-primary" onclick="cloudAdminSignInForm()">Sign In</button><button class="btn btn-soft" onclick="cloudCreateAccount()">Sign Up / Create Admin Account</button></div><div class="privacy-note">Admin signup is only for Jeff and Lana. Tenant accounts are invitation-only.</div></div>';
+  }
+  content.innerHTML=statusHtml+
+    '<div class="card panel" style="margin-top:16px"><div class="panelhead"><div><h3>Switch Profile</h3><p>Choose which PropertyWorks experience to open on this device.</p></div></div><div class="mini-grid">'+
+    '<button class="card mini" style="text-align:left;border:1px solid var(--line)" onclick="switchProfileFromAccount(\'owner\')"><h3>Owner / Admin</h3><p>Portfolio, leases, tenants, broadcasts, financials and reporting.</p></button>'+
+    '<button class="card mini" style="text-align:left;border:1px solid var(--line)" onclick="switchProfileFromAccount(\'tenant\')"><h3>Tenant</h3><p>Maintenance requests and tenant notifications.</p></button>'+
+    '<button class="card mini" style="text-align:left;border:1px solid var(--line)" onclick="switchProfileFromAccount(\'contractor\')"><h3>Technician / Handyman</h3><p>Available jobs, bids, assigned work and completion.</p></button>'+
+    '</div></div>';
+}
+function switchProfileFromAccount(role){
+  currentRole=role;localStorage.setItem("propertyworks_role",role);
+  if(role==="owner") view="overview";
+  else if(role==="tenant") view=tenantSession?"tenantHome":"tenantAuth";
+  else view="contractorHome";
+  render();
 }
 function cloudAccountModal(){
   if(currentRole!=="owner"){alert("Cloud admin accounts are only available to PropertyWorks landlords/admins. Tenant accounts are invitation-only.");return}
@@ -117,7 +152,10 @@ async function cloudSignIn(email,password){
     alert("Your email is confirmed. Enter the PropertyWorks Admin Setup Code to activate this account for Jeff/Lana.");
     adminActivationModal(); return
   }
-  subscribeRealtime(); alert("PropertyWorks Admin Cloud connected."); await cloudPullOwnerData();
+  localStorage.removeItem("propertyworks_admin_signup_state");
+  localStorage.removeItem("propertyworks_pending_admin_email");
+  localStorage.removeItem("propertyworks_pending_admin_name");
+  subscribeRealtime(); alert("PropertyWorks Admin Cloud connected."); view="accountCenter"; await cloudPullOwnerData(); render();
 }
 async function cloudCreateAccount(){
   if(currentRole!=="owner"){alert("Only a landlord/admin can create an admin account.");return}
@@ -152,7 +190,11 @@ async function cloudCreateAccount(){
         }
       }else{
         localStorage.setItem("propertyworks_pending_admin_code",o.setupCode.trim().toUpperCase());
-        alert("Admin account created. Check your email to confirm it. Then return to PropertyWorks and sign in; the app will finish admin activation.");
+        localStorage.setItem("propertyworks_pending_admin_email",o.email.trim());
+        localStorage.setItem("propertyworks_pending_admin_name",o.fullName);
+        localStorage.setItem("propertyworks_admin_signup_state","awaiting_confirmation");
+        alert("Your admin account was created. Check your email to confirm it. Then return to PropertyWorks and tap Sign In — do not create another account.");
+        view="accountCenter";render();
       }
     }
   )
@@ -184,7 +226,7 @@ function cloudConnectedModal(){
     ()=>{}
   )
 }
-async function cloudSignOut(){await supabaseClient.auth.signOut();cloudUser=null;cloudProfileRole=null;updateCloudButton();document.getElementById("dlg").close();alert("Signed out of PropertyWorks Cloud.")}
+async function cloudSignOut(){await supabaseClient.auth.signOut();cloudUser=null;cloudProfileRole=null;updateCloudButton();try{document.getElementById("dlg").close()}catch(e){}view="accountCenter";render();alert("Signed out of PropertyWorks.")}
 async function cloudPushLocalData(){
   if(!cloudUser){alert("Sign in first.");return}
   const ownerId=cloudUser.id;
@@ -601,7 +643,7 @@ function contractorProfile(){setHeader("Contractor Profile","Manage trade specia
 
 function cameras(){setHeader("Cameras","Owner-only property camera dashboard.");content.innerHTML='<div class="card panel"><div class="panelhead"><div><h3>Camera Integrations</h3><p>Reserved for owner/admin access only.</p></div><span class="chip">Coming soon</span></div><div class="empty">This area is intentionally not available to tenant accounts. Future Ring or other supported camera integrations can be connected here.</div></div>'}
 function switchRole(role){currentRole=role;localStorage.setItem("propertyworks_role",role);view=role==="tenant"?(tenantSession?"tenantHome":"tenantAuth"):role==="contractor"?"contractorHome":"overview";render()}
-function render(){navRender();const routes=currentRole==="tenant"?{tenantAuth,tenantHome,tenantService,notifications}:currentRole==="contractor"?{contractorHome,contractorMyJobs,contractorProfile,notifications}:{overview,properties,rentals,leaseGenerator,tenantAccounts,service,marketplace,notifications,broadcasts,automation,cameras,deals,renovations,financials,reports,documents};(routes[view]|| (currentRole==="tenant"?(tenantSession?tenantHome:tenantAuth):currentRole==="contractor"?contractorHome:overview))()}function setView(v){view=v;render()}
+function render(){navRender();const routes=currentRole==="tenant"?{tenantAuth,tenantHome,tenantService,notifications,accountCenter}:currentRole==="contractor"?{contractorHome,contractorMyJobs,contractorProfile,notifications,accountCenter}:{overview,properties,rentals,leaseGenerator,tenantAccounts,service,marketplace,notifications,broadcasts,automation,cameras,deals,renovations,financials,reports,documents,accountCenter};(routes[view]|| (currentRole==="tenant"?(tenantSession?tenantHome:tenantAuth):currentRole==="contractor"?contractorHome:overview))()}function setView(v){view=v;render()}
 function opts(arr){return arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join("")}function field(label,name,type="text",extra=""){return '<div class="field"><label>'+label+'</label><input name="'+name+'" type="'+type+'" '+extra+'></div>'}function select(label,name,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options+'</select></div>'}function area(label,name){return '<div class="field full"><label>'+label+'</label><textarea name="'+name+'"></textarea></div>'}function modal(title,eyebrow,body,fn){modalTitle.textContent=title;modalEyebrow.textContent=eyebrow;modalBody.innerHTML='<div class="formgrid">'+body+'</div>';dlg.showModal();form.onsubmit=e=>{e.preventDefault();fn(Object.fromEntries(new FormData(e.target).entries()));dlg.close()}}
 function quickAdd(){modal("What do you want to add?","QUICK ADD",select("Record type","kind",'<option value="property">Property</option><option value="payment">Rent payment</option><option value="tenant">Tenant</option><option value="lease">Lease</option><option value="service">Tenant service request</option><option value="invite">Tenant invitation</option><option value="contractor">Contractor profile</option><option value="deal">Buy/Sell deal</option><option value="reno">Renovation</option><option value="expense">Expense</option><option value="document">Document</option>'),o=>setTimeout(()=>({property:addProperty,payment:addPayment,tenant:addTenant,lease:addLease,service:tenantRepairForm,invite:createTenantInvite,contractor:contractorProfileForm,deal:addDeal,reno:addRenovation,expense:addExpense,document:addDocument}[o.kind]()),40))}
 function addProperty(){modal("Add Property","PROPERTY",field("Name","name")+field("Address","address")+field("Type","type")+field("Units","units","number",'min="1" value="1"')+field("Occupied units","occupied","number",'min="0" value="0"')+field("Monthly rent","rent","number",'min="0"'),o=>{data.properties.push({id:uid("p"),...o,units:+o.units,occupied:+o.occupied,rent:+o.rent||0});save()})}
