@@ -245,42 +245,109 @@ async function hashPassword(value){const buf=new TextEncoder().encode(value);con
 function makeInviteCode(){return Math.random().toString(36).slice(2,6).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase()}
 
 function leaseGenerator(){
-  setHeader("NYC Lease Generator","Generate, sign, print and digitally store a market-rate NYC 1–2 family residential lease.");
-  content.innerHTML='<div class="legal-note">PropertyWorks provides a customizable lease template based on current New York/NYC requirements for market-rate 1–2 family rentals. It is not legal advice and should be reviewed by a New York landlord-tenant attorney before you rely on it for unusual situations, rent-regulated units, subsidized-program riders, or litigation-sensitive terms.</div>'+
-  '<div class="lease-layout" style="margin-top:16px"><div class="card panel"><div class="panelhead"><div><h3>Lease Details</h3><p>Fill out the form and generate the lease instantly.</p></div></div>'+
+  setHeader("NYC Lease Generator","Answer a short landlord questionnaire first. PropertyWorks then builds the lease around the property and tenancy.");
+  content.innerHTML='<div class="legal-note">Start with the landlord questionnaire. Your answers control which clauses, disclosures, riders and warnings are built into the lease. PropertyWorks does not assume every two-family tenancy is the same.</div>'+
+  '<div class="card panel" style="margin-top:16px"><div class="panelhead"><div><h3>Step 1 — Landlord Questionnaire</h3><p>PropertyWorks uses these answers to customize the lease before it is generated.</p></div><span class="chip">Required</span></div>'+
   '<div class="formgrid">'+
-  select("Property","leasePropertyId",opts(data.properties))+
-  field("Landlord / Owner name","leaseLandlord")+
-  field("Landlord notice address","leaseLandlordAddress")+
-  field("Tenant full legal name(s)","leaseTenant")+
-  field("Unit / Apartment","leaseUnit")+
-  field("Lease start","leaseStart","date")+
-  field("Lease end","leaseEnd","date")+
-  field("Monthly rent","leaseRent","number")+
-  field("Security deposit","leaseDeposit","number")+
+  select("Property","qPropertyId",opts(data.properties))+
+  select("Who is signing as landlord?","qLandlord","<option value=\"Jeff Jdia\">Jeff Jdia</option><option value=\"Lana Jdia\">Lana Jdia</option><option value=\"Jeff Jdia and Lana Jdia\">Jeff Jdia and Lana Jdia</option><option value=\"entity\">LLC / ownership entity</option>")+
+  field("If LLC/entity, enter exact legal name","qEntity")+
+  select("Is this a 1- or 2-family property?","qFamilyType","<option value=\"2-family\">2-family</option><option value=\"1-family\">1-family</option><option value=\"other\">Other / review needed</option>")+
+  select("Do you or Lana live in this building?","qOwnerOccupied","<option value=\"no\">No</option><option value=\"yes\">Yes</option>")+
+  select("How many residential units do the owners own in New York?","qOwnerUnits","<option value=\"10-or-fewer\">10 or fewer</option><option value=\"more-than-10\">More than 10</option><option value=\"unsure\">Not sure</option>")+
+  select("Is the unit rent stabilized or otherwise rent regulated?","qRegulated","<option value=\"no\">No / market rate</option><option value=\"yes\">Yes</option><option value=\"unsure\">Not sure</option>")+
+  select("Is rent paid in whole or part by a housing program?","qSubsidy","<option value=\"none\">No subsidy</option><option value=\"section8\">Section 8</option><option value=\"cityfheps\">CityFHEPS</option><option value=\"other\">Other housing program</option>")+
+  select("Approximate building age","qBuildingAge","<option value=\"pre1960\">Built before 1960</option><option value=\"1960-1977\">Built 1960–1977</option><option value=\"1978plus\">Built 1978 or later</option><option value=\"unknown\">Unknown</option>")+
+  select("Will a child under age 6 live in the apartment?","qChildUnder6","<option value=\"no\">No</option><option value=\"yes\">Yes</option><option value=\"unknown\">Unknown</option>")+
+  select("Which utilities are separately metered to the apartment?","qMeters","<option value=\"electric\">Electric only</option><option value=\"gas-electric\">Gas and electric</option><option value=\"none\">None / landlord pays</option><option value=\"other\">Other arrangement</option>")+
+  select("Who pays water/sewer?","qWater","<option value=\"landlord\">Landlord</option><option value=\"tenant\">Tenant if legally and practically assignable</option>")+
+  select("Pet policy","qPets","<option value=\"none\">No pets without written permission</option><option value=\"cats\">Cats only</option><option value=\"approved\">Only specifically approved pets</option><option value=\"allowed\">Pets allowed subject to rules</option>")+
+  select("Smoking / vaping","qSmoking","<option value=\"no\">No smoking or vaping inside</option><option value=\"rules\">Subject to written building rules</option>")+
+  select("Backyard use","qBackyard","<option value=\"none\">No tenant backyard rights</option><option value=\"shared\">Shared use subject to rules</option><option value=\"private\">Private use for this unit</option><option value=\"storage-only\">Use permitted but belongings must be stored safely/in shed</option>")+
+  select("Parking / driveway","qParking","<option value=\"none\">No parking included</option><option value=\"included\">Parking space included</option><option value=\"separate\">Separate parking agreement</option>")+
+  select("Will you require renter's insurance?","qInsurance","<option value=\"required\">Yes</option><option value=\"recommended\">Recommended, not required</option>")+
+  select("Will landlord need access for repairs/showings with lawful notice?","qAccess","<option value=\"yes\">Yes — include access clause</option><option value=\"standard\">Use standard lawful access language</option>")+
+  select("Is this a lease renewal?","qRenewal","<option value=\"no\">New tenancy</option><option value=\"yes\">Renewal</option>")+
+  area("Special property rules you want included","qRules")+
+  '<div class="field full"><button type="button" class="btn btn-primary" onclick="buildCustomizedLeaseForm()">Continue to Customized Lease</button></div>'+
+  '</div></div>'+
+  '<div class="card panel" style="margin-top:16px"><div class="panelhead"><div><h3>What PropertyWorks decides from these answers</h3><p>The lease form changes before you fill in tenant-specific details.</p></div></div><div class="mini-grid">'+
+  '<div class="card mini"><h3>Good Cause</h3><p>Chooses the likely exemption/coverage path and flags uncertain answers.</p></div>'+
+  '<div class="card mini"><h3>Housing Program</h3><p>Flags Section 8, CityFHEPS or other program riders instead of treating the lease as purely market-rate.</p></div>'+
+  '<div class="card mini"><h3>Lead / Children</h3><p>Flags lead-related disclosures based on building age and occupancy answers.</p></div>'+
+  '<div class="card mini"><h3>Utilities</h3><p>Builds the utility responsibility clause around the meter setup you select.</p></div>'+
+  '<div class="card mini"><h3>Property Rules</h3><p>Adds selected pet, smoking, backyard, parking, insurance and access rules.</p></div>'+
+  '<div class="card mini"><h3>Renewal vs New Lease</h3><p>Adjusts the workflow and compliance reminders for a renewal tenancy.</p></div>'+
+  '</div></div>';
+}
+function buildCustomizedLeaseForm(){
+  const v=id=>document.getElementById(id)?.value||"";
+  const q={
+    propertyId:v("qPropertyId"),landlord:v("qLandlord"),entity:v("qEntity"),familyType:v("qFamilyType"),
+    ownerOccupied:v("qOwnerOccupied"),ownerUnits:v("qOwnerUnits"),regulated:v("qRegulated"),subsidy:v("qSubsidy"),
+    buildingAge:v("qBuildingAge"),childUnder6:v("qChildUnder6"),meters:v("qMeters"),water:v("qWater"),pets:v("qPets"),
+    smoking:v("qSmoking"),backyard:v("qBackyard"),parking:v("qParking"),insurance:v("qInsurance"),access:v("qAccess"),
+    renewal:v("qRenewal"),rules:v("qRules")
+  };
+  if(!q.propertyId){alert("Choose the property first.");return}
+  if(q.regulated!=="no"){alert("This tenancy may require a rent-regulated or specialized lease/rider. PropertyWorks will flag it for attorney/program review before signing.")}
+  const landlord=q.landlord==="entity"?(q.entity||"Ownership Entity"):q.landlord;
+  let goodCause="covered";
+  if(q.ownerOccupied==="yes" && q.familyType!=="other") goodCause="owner-occupied";
+  else if(q.ownerUnits==="10-or-fewer") goodCause="small-landlord";
+  else if(q.ownerUnits==="unsure") goodCause="other";
+
+  let utilities="None";
+  if(q.meters==="electric") utilities="Electric only";
+  if(q.meters==="gas-electric") utilities="Gas and electric";
+  if(q.meters==="other") utilities="Separately metered utilities specifically listed in the lease";
+  if(q.water==="tenant") utilities += "; water/sewer only if separately billable and legally assignable";
+
+  let pets="No pets without written permission";
+  if(q.pets==="cats") pets="Cats permitted only, subject to written rules";
+  if(q.pets==="approved") pets="Only specifically approved pets are permitted";
+  if(q.pets==="allowed") pets="Pets permitted subject to written rules";
+
+  const smoking=q.smoking==="no"?"No smoking or vaping inside the apartment":"Smoking/vaping subject to written building rules";
+  const lead=(q.buildingAge==="1978plus" && q.childUnder6==="no")?"not-applicable":"attach";
+
+  let extra=[];
+  if(q.subsidy!=="none") extra.push("Housing program: "+q.subsidy.toUpperCase()+". Any required HAP, subsidy, agency or program rider controls where applicable.");
+  if(q.backyard==="shared") extra.push("Backyard use is shared and subject to landlord rules; tenant must keep the area safe and free of damage.");
+  if(q.backyard==="private") extra.push("Backyard use is assigned to this unit subject to maintenance, safety and no-damage rules.");
+  if(q.backyard==="storage-only") extra.push("Tenant may use the backyard only subject to safe storage rules. Belongings may not be leaned against the building or stored so as to collect water; storage should be in an approved shed or other safe enclosure.");
+  if(q.parking==="included") extra.push("One parking space is included, subject to driveway/fire-access rules.");
+  if(q.parking==="separate") extra.push("Parking is not included in the residential rent and is governed by a separate agreement.");
+  if(q.insurance==="required") extra.push("Tenant must maintain renter's insurance during the tenancy and provide proof upon reasonable request.");
+  if(q.insurance==="recommended") extra.push("Renter's insurance is strongly recommended.");
+  if(q.rules) extra.push(q.rules);
+  if(q.regulated!=="no") extra.push("ATTORNEY/PROGRAM REVIEW REQUIRED: Tenant indicated this unit may be rent regulated or status is uncertain.");
+  if(q.subsidy!=="none") extra.push("PROGRAM REVIEW REQUIRED: Attach all current agency-required riders/forms before execution.");
+  if(q.ownerUnits==="unsure") extra.push("GOOD CAUSE REVIEW REQUIRED: Ownership-unit count is uncertain.");
+
+  window.leaseQuestionnaire=q;
+  setHeader("Customized Lease Details","Step 2 — enter the tenant and financial terms for the lease PropertyWorks configured from your answers.");
+  content.innerHTML='<div class="legal-note"><b>Lease configuration:</b> '+esc(q.familyType)+', '+(q.renewal==="yes"?"renewal":"new tenancy")+', '+(q.subsidy==="none"?"market-rate/no subsidy":esc(q.subsidy))+(q.regulated==="no"?"":", legal/program review flagged")+'.</div>'+
+  '<div class="lease-layout" style="margin-top:16px"><div class="card panel"><div class="panelhead"><div><h3>Step 2 — Tenant & Lease Terms</h3><p>These choices were preconfigured from your landlord questionnaire.</p></div><button class="btn btn-soft" onclick="leaseGenerator()">Back to Questions</button></div>'+
+  '<div class="formgrid">'+
+  '<input type="hidden" id="leasePropertyId" value="'+esc(q.propertyId)+'">'+
+  field("Landlord / Owner name","leaseLandlord")+field("Landlord notice address","leaseLandlordAddress")+
+  field("Tenant full legal name(s)","leaseTenant")+field("Unit / Apartment","leaseUnit")+
+  field("Lease start","leaseStart","date")+field("Lease end","leaseEnd","date")+
+  field("Monthly rent","leaseRent","number")+field("Security deposit","leaseDeposit","number")+
   select("Rent due day","leaseDueDay","<option value=\"1\">1st</option><option value=\"5\">5th</option><option value=\"10\">10th</option>")+
   select("Late fee","leaseLateFee","<option value=\"none\">No late fee</option><option value=\"legal\">NY statutory maximum, if legally permitted</option>")+
-  select("Utilities paid by tenant","leaseUtilities","<option>Electric only</option><option>Gas and electric</option><option>All separately metered utilities except water</option><option>None</option>")+
-  select("Pets","leasePets","<option>No pets without written permission</option><option>Cats permitted only</option><option>Pets permitted subject to written rules</option>")+
-  select("Smoking","leaseSmoking","<option>No smoking or vaping inside the apartment</option><option>Smoking policy set by landlord rules</option>")+
-  select("Good Cause status","leaseGoodCause","<option value=\"small-landlord\">Exempt — small landlord (10 or fewer NY units, subject to ownership test)</option><option value=\"owner-occupied\">Exempt — owner-occupied building with 10 or fewer units</option><option value=\"covered\">Covered by Good Cause Eviction</option><option value=\"other\">Other exemption / attorney review needed</option>")+
-  select("Lead paint rider","leaseLead","<option value=\"attach\">Attach required lead-paint notice/pamphlet if applicable</option><option value=\"not-applicable\">Not applicable based on building facts</option>")+
-  select("Bedbug disclosure","leaseBedbug","<option value=\"attach\">Attach NY bedbug history disclosure</option><option value=\"posted\">Building notice already provided/posted as permitted</option>")+
-  area("Additional landlord rules / riders","leaseExtra")+
-  '<div class="field full"><button type="button" class="btn btn-primary" onclick="generateLeasePreview()">Generate Lease Preview</button></div>'+
-  '</div></div><div><div id="leasePreview" class="lease-paper"><h1>PropertyWorks NYC Residential Lease</h1><p>Complete the form and tap <b>Generate Lease Preview</b>.</p></div></div></div>'+
-  '<div class="grid2" style="margin-top:16px"><div class="card panel"><div class="panelhead"><div><h3>Compliance Checklist</h3><p>Items to review before signing</p></div></div><div class="checklist">'+
-  '<div class="checkitem"><b>Good Cause Eviction Notice</b><span>NYC landlords must state whether Good Cause applies or, if exempt, the applicable exemption with new and renewal leases.</span></div>'+
-  '<div class="checkitem"><b>Security Deposit</b><span>Do not collect more than one month\'s rent as a security deposit.</span></div>'+
-  '<div class="checkitem"><b>Lead Paint</b><span>For covered older buildings, provide the lease/occupancy notice and required lead-paint pamphlet; NYC rules also apply to certain 1–2 family rentals.</span></div>'+
-  '<div class="checkitem"><b>Bedbug History</b><span>Provide the required written bedbug history disclosure to new tenants where applicable.</span></div>'+
-  '<div class="checkitem"><b>Utilities / Access / House Rules</b><span>Make responsibility clear and do not use lease language that waives rights that cannot legally be waived.</span></div>'+
-  '</div></div><div class="card panel"><div class="panelhead"><div><h3>Required / Useful Official Forms</h3><p>Use current agency forms with the generated lease.</p></div></div>'+
-  '<div class="kv"><span>NYC Good Cause Eviction Notice</span><b><a target="_blank" href="https://www.nyc.gov/assets/hpd/downloads/pdfs/services/good-cause-eviction-law-notice-fillable.pdf">Open</a></b></div>'+
-  '<div class="kv"><span>NYC Lead-Based Paint Information</span><b><a target="_blank" href="https://www.nyc.gov/site/hpd/services-and-information/lead-based-paint.page">Open</a></b></div>'+
-  '<div class="kv"><span>NYC Bedbug Information / Disclosure</span><b><a target="_blank" href="https://www.nyc.gov/site/hpd/services-and-information/bedbugs.page">Open</a></b></div>'+
-  '<div class="kv"><span>NY Attorney General Tenant Rights Guide</span><b><a target="_blank" href="https://ag.ny.gov/publications/residential-tenants-rights-guide">Open</a></b></div>'+
-  '</div></div>';
+  '<input type="hidden" id="leaseUtilities" value="'+esc(utilities)+'">'+
+  '<input type="hidden" id="leasePets" value="'+esc(pets)+'">'+
+  '<input type="hidden" id="leaseSmoking" value="'+esc(smoking)+'">'+
+  '<input type="hidden" id="leaseGoodCause" value="'+esc(goodCause)+'">'+
+  '<input type="hidden" id="leaseLead" value="'+esc(lead)+'">'+
+  '<input type="hidden" id="leaseBedbug" value="attach">'+
+  '<input type="hidden" id="leaseExtra" value="'+esc(extra.join("\n"))+'">'+
+  '<div class="field full"><div class="privacy-note"><b>Customized automatically</b><br>Utilities: '+esc(utilities)+'<br>Pets: '+esc(pets)+'<br>Good Cause path: '+esc(goodCause)+'<br>Lead disclosure: '+esc(lead==="attach"?"Flagged for attachment/review":"Not flagged based on answers")+'<br>Program: '+esc(q.subsidy)+'</div></div>'+
+  '<div class="field full"><button type="button" class="btn btn-primary" onclick="generateLeasePreview()">Generate Customized Lease</button></div>'+
+  '</div></div><div><div id="leasePreview" class="lease-paper"><h1>PropertyWorks NYC Residential Lease</h1><p>Your questionnaire has configured the lease. Complete the tenant and financial terms, then generate the customized lease.</p></div></div></div>';
+  const land=document.getElementById("leaseLandlord");if(land)land.value=landlord;
 }
 function leaseFormValues(){
   const v=id=>document.getElementById(id)?.value||"";
