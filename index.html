@@ -38,7 +38,7 @@ dialog{width:min(660px,92vw);max-height:88dvh;overflow:auto;border:0;border-radi
 <main class="main"><header class="topbar"><div><h2 id="pageTitle">Overview</h2><p id="pageSub">Your entire real estate operation in one place.</p></div><div class="actions"><button id="cloudBtn" class="btn btn-soft" onclick="setView('accountCenter')">👤 Account</button><select id="roleSelect" class="role-select" onchange="switchRole(this.value)"><option value="owner">Owner / Admin</option><option value="tenant">Tenant View</option><option value="contractor">Technician / Handyman</option></select><button id="exportBtn" class="btn btn-soft" onclick="exportData()">Export</button><button id="addNewBtn" class="btn btn-primary" onclick="quickAdd()">＋ Add New</button></div></header><section class="content" id="content"></section></main>
 </div>
 <nav class="mobilebar" id="mobileNav"></nav>
-<dialog id="dlg"><form method="dialog" id="form" class="modal"><div class="modalhead"><div><small id="modalEyebrow">NEW</small><h3 id="modalTitle">Add</h3></div><button value="cancel" class="close">×</button></div><div id="modalBody"></div><div class="modalactions"><button value="cancel" class="btn btn-soft">Cancel</button><button value="default" class="btn btn-primary">Save</button></div></form></dialog>
+<dialog id="dlg"><form method="dialog" id="form" class="modal"><div class="modalhead"><div><small id="modalEyebrow">NEW</small><h3 id="modalTitle">Add</h3></div><button value="cancel" class="close">×</button></div><div id="modalBody"></div><div class="modalactions"><button value="cancel" class="btn btn-soft">Cancel</button><button id="modalSubmitBtn" value="default" class="btn btn-primary">Save</button></div></form></dialog>
 <script>
 const KEY="propertyworks_v3";
 const SUPABASE_URL="https://enxdxvwrkuikivkkewyn.supabase.co";
@@ -136,7 +136,8 @@ function cloudAccountModal(){
 function cloudAdminSignInForm(){
   modal("Admin Sign In","PROPERTYWORKS CLOUD",
     field("Email","email","email")+field("Password","password","password"),
-    async o=>{await cloudSignIn(o.email,o.password)}
+    async o=>{await cloudSignIn(o.email,o.password)},
+    "Sign In"
   )
 }
 async function cloudSignIn(email,password){
@@ -202,7 +203,8 @@ async function cloudCreateAccount(){
         alert("Your admin account was created. Check your email to confirm it. Then return to PropertyWorks and tap Sign In — do not create another account.");
         view="accountCenter";render();
       }
-    }
+    },
+    "Create Account"
   )
 }
 function adminActivationModal(){
@@ -220,7 +222,8 @@ function adminActivationModal(){
         alert("Admin access activated successfully.");
         await cloudPullOwnerData();
       }else alert("Admin activation did not complete. Please try again.");
-    }
+    },
+    "Activate Admin"
   )
 }
 function cloudConnectedModal(){
@@ -650,7 +653,7 @@ function contractorProfile(){setHeader("Contractor Profile","Manage trade specia
 function cameras(){setHeader("Cameras","Owner-only property camera dashboard.");content.innerHTML='<div class="card panel"><div class="panelhead"><div><h3>Camera Integrations</h3><p>Reserved for owner/admin access only.</p></div><span class="chip">Coming soon</span></div><div class="empty">This area is intentionally not available to tenant accounts. Future Ring or other supported camera integrations can be connected here.</div></div>'}
 function switchRole(role){currentRole=role;localStorage.setItem("propertyworks_role",role);view=role==="tenant"?(tenantSession?"tenantHome":"tenantAuth"):role==="contractor"?"contractorHome":"overview";render()}
 function render(){navRender();const routes=currentRole==="tenant"?{tenantAuth,tenantHome,tenantService,notifications,accountCenter}:currentRole==="contractor"?{contractorHome,contractorMyJobs,contractorProfile,notifications,accountCenter}:{overview,properties,rentals,leaseGenerator,tenantAccounts,service,marketplace,notifications,broadcasts,automation,cameras,deals,renovations,financials,reports,documents,accountCenter};(routes[view]|| (currentRole==="tenant"?(tenantSession?tenantHome:tenantAuth):currentRole==="contractor"?contractorHome:overview))()}function setView(v){view=v;render()}
-function opts(arr){return arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join("")}function field(label,name,type="text",extra=""){return '<div class="field"><label>'+label+'</label><input name="'+name+'" type="'+type+'" '+extra+'></div>'}function select(label,name,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options+'</select></div>'}function area(label,name){return '<div class="field full"><label>'+label+'</label><textarea name="'+name+'"></textarea></div>'}function modal(title,eyebrow,body,fn){modalTitle.textContent=title;modalEyebrow.textContent=eyebrow;modalBody.innerHTML='<div class="formgrid">'+body+'</div>';dlg.showModal();form.onsubmit=e=>{e.preventDefault();fn(Object.fromEntries(new FormData(e.target).entries()));dlg.close()}}
+function opts(arr){return arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join("")}function field(label,name,type="text",extra=""){return '<div class="field"><label>'+label+'</label><input name="'+name+'" type="'+type+'" '+extra+'></div>'}function select(label,name,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options+'</select></div>'}function area(label,name){return '<div class="field full"><label>'+label+'</label><textarea name="'+name+'"></textarea></div>'}function modal(title,eyebrow,body,fn,submitLabel="Save"){modalTitle.textContent=title;modalEyebrow.textContent=eyebrow;modalBody.innerHTML='<div class="formgrid">'+body+'</div>';const sb=document.getElementById("modalSubmitBtn");if(sb)sb.textContent=submitLabel;dlg.showModal();form.onsubmit=async e=>{e.preventDefault();const btn=document.getElementById("modalSubmitBtn");if(btn){btn.disabled=true;btn.textContent=submitLabel==="Sign In"?"Signing In…":submitLabel==="Create Account"?"Creating…":submitLabel==="Activate Admin"?"Activating…":submitLabel;}try{await fn(Object.fromEntries(new FormData(e.target).entries()));}finally{if(btn){btn.disabled=false;btn.textContent=submitLabel}if(dlg.open)dlg.close();}}}
 function quickAdd(){modal("What do you want to add?","QUICK ADD",select("Record type","kind",'<option value="property">Property</option><option value="payment">Rent payment</option><option value="tenant">Tenant</option><option value="lease">Lease</option><option value="service">Tenant service request</option><option value="invite">Tenant invitation</option><option value="contractor">Contractor profile</option><option value="deal">Buy/Sell deal</option><option value="reno">Renovation</option><option value="expense">Expense</option><option value="document">Document</option>'),o=>setTimeout(()=>({property:addProperty,payment:addPayment,tenant:addTenant,lease:addLease,service:tenantRepairForm,invite:createTenantInvite,contractor:contractorProfileForm,deal:addDeal,reno:addRenovation,expense:addExpense,document:addDocument}[o.kind]()),40))}
 function addProperty(){modal("Add Property","PROPERTY",field("Name","name")+field("Address","address")+field("Type","type")+field("Units","units","number",'min="1" value="1"')+field("Occupied units","occupied","number",'min="0" value="0"')+field("Monthly rent","rent","number",'min="0"'),o=>{data.properties.push({id:uid("p"),...o,units:+o.units,occupied:+o.occupied,rent:+o.rent||0});save()})}
 function editProperty(id){
