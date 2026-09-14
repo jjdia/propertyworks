@@ -1,0 +1,10 @@
+{
+  "name": "PropertyWorks Real Estate Command Center",
+  "short_name": "PropertyWorks",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#0f1b2d",
+  "description": "Manage rentals, real estate acquisitions, sales, renovations, documents and portfolio performance."
+}
