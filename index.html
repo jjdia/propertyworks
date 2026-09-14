@@ -265,7 +265,7 @@ async function sendBroadcast(){
   const recipients=unique.map(t=>({broadcast_id:br.data.id,owner_id:cloudUser.id,tenant_user_id:t.userId,property_id:t.propertyId,delivered_at:new Date().toISOString()}));
   const rr=await supabaseClient.from("broadcast_recipients").insert(recipients);
   if(rr.error){alert("Recipient delivery failed: "+rr.error.message);return}
-  const notices=unique.map(t=>({user_id:t.userId,title:(urgency==="Emergency"?"EMERGENCY: ":"")+title,message}));
+  const scheduleText=scheduled?"\n\nScheduled: "+new Date(scheduled).toLocaleString():"";const notices=unique.map(t=>({user_id:t.userId,title:(urgency==="Emergency"?"EMERGENCY: ":"")+title,message:message+scheduleText}));
   const nr=await supabaseClient.from("notifications").insert(notices);
   if(nr.error){alert("Broadcast created, but tenant notifications failed: "+nr.error.message);return}
   notifyParty("owner","Broadcast sent",title+" was sent privately to "+unique.length+" tenant"+(unique.length===1?"":"s")+".");
