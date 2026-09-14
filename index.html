@@ -510,7 +510,7 @@ function deleteProperty(id){
   authData.accounts=(authData.accounts||[]).filter(x=>x.propertyId!==id);
   saveAuth(); save();
 }
-function simpleList(arr,title,sub){return arr.length?arr.slice(0,4).map(x=>'<div class="kv"><div><b>'+esc(title(x))+'</b><div class="rowsub">'+esc(sub(x)||"")+'</div></div></div>').join(""):'<div class="empty">Nothing here yet.</div>'}function paymentTable(){return data.payments.length?'<div class="tablecard"><table><thead><tr><th>Date</th><th>Property</th><th>Tenant</th><th>Source</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+data.payments.map(x=>'<tr><td>'+df(x.date)+'</td><td>'+esc(prop(x.propertyId)?.name||"")+'</td><td class="rowtitle">'+esc(tenant(x.tenantId)?.name||"—")+'</td><td>'+esc(x.source||"Tenant")+'</td><td>'+money(x.amount)+'</td><td><span class="status '+(x.status==="Paid"?"good":x.status==="Late"?"bad":"warn")+'">'+esc(x.status)+'</span></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No rent transactions yet.</div>'}
+function simpleList(arr,title,sub){return arr.length?arr.slice(0,4).map(x=>'<div class="kv"><div><b>'+esc(title(x))+'</b><div class="rowsub">'+esc(sub(x)||"")+'</div></div></div>').join(""):'<div class="empty">Nothing here yet.</div>'}function paymentTable(){return data.payments.length?'<div class="tablecard"><table><thead><tr><th>Date</th><th>Property</th><th>Tenant</th><th>Source</th><th>Portion</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+data.payments.map(x=>'<tr><td>'+df(x.date)+'</td><td>'+esc(prop(x.propertyId)?.name||"")+'</td><td class="rowtitle">'+esc(tenant(x.tenantId)?.name||"—")+'</td><td>'+esc(x.source||"Tenant")+'</td><td>'+(x.splitGroup?(x.splitPercent!=null?x.splitPercent+"%":"Split"):"—")+'</td><td>'+money(x.amount)+'</td><td><span class="status '+(x.status==="Paid"?"good":x.status==="Late"?"bad":"warn")+'">'+esc(x.status)+'</span></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No rent transactions yet.</div>'}
 function deals(){setHeader("Buy & Sell","Track acquisitions, listings, offers and closings.");content.innerHTML='<div class="sectionbar"><div></div><button class="btn btn-primary" onclick="addDeal()">＋ Add Deal</button></div><div class="mini-grid">'+(data.deals.length?data.deals.map(d=>'<div class="card mini"><div class="panelhead"><div><h3>'+esc(d.name)+'</h3><p>'+esc(d.type)+' · '+esc(d.stage)+'</p></div><span class="chip">'+money(d.price)+'</span></div><div class="kv"><span>Property</span><b>'+esc(d.address||"—")+'</b></div><div class="kv"><span>Target / Price</span><b>'+money(d.price)+'</b></div><div class="kv"><span>Stage</span><b>'+esc(d.stage)+'</b></div></div>').join(""):'<div class="card empty">No acquisitions or sales tracked yet.</div>')+'</div>'}
 function renovations(){setHeader("Renovations","Budgets, contractors, projects and completion status.");content.innerHTML='<div class="sectionbar"><div></div><button class="btn btn-primary" onclick="addRenovation()">＋ Add Project</button></div><div class="mini-grid">'+(data.renovations.length?data.renovations.map(r=>'<div class="card mini"><div class="panelhead"><div><h3>'+esc(r.name)+'</h3><p>'+esc(prop(r.propertyId)?.name||"")+'</p></div><span class="chip '+(r.status==="Completed"?"good":"warn")+'">'+esc(r.status)+'</span></div><div class="kv"><span>Budget</span><b>'+money(r.budget)+'</b></div><div class="kv"><span>Spent</span><b>'+money(r.spent)+'</b></div><div class="kv"><span>Contractor</span><b>'+esc(r.contractor||"—")+'</b></div></div>').join(""):'<div class="card empty">No renovation projects yet.</div>')+'</div>'}
 function financials(){setHeader("Financials","Income, expenses and property-level performance.");const inc=data.payments.filter(x=>x.status==="Paid").reduce((a,b)=>a+(+b.amount||0),0),exp=data.expenses.reduce((a,b)=>a+(+b.amount||0),0);content.innerHTML='<div class="kpis">'+metric("Recorded Income",money(inc),"Paid transactions","$")+metric("Recorded Expenses",money(exp),"Operating expenses","−")+metric("Recorded Net",money(inc-exp),"Income less expenses","↗")+metric("Properties",data.properties.length,"Owned assets","⌂")+'</div><div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Expenses</b><div class="rowsub">Repairs, taxes, utilities and more</div></div><button class="btn btn-primary" onclick="addExpense()">＋ Add Expense</button></div>'+expenseTable()+'</div>'}function expenseTable(){return data.expenses.length?'<div class="tablecard"><table><thead><tr><th>Date</th><th>Property</th><th>Category</th><th>Vendor</th><th>Amount</th></tr></thead><tbody>'+data.expenses.map(e=>'<tr><td>'+df(e.date)+'</td><td>'+esc(prop(e.propertyId)?.name||"")+'</td><td>'+esc(e.category)+'</td><td>'+esc(e.vendor||"—")+'</td><td>'+money(e.amount)+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No expenses entered yet.</div>'}
@@ -780,7 +780,52 @@ function editProperty(id){
 }
 function addTenant(){modal("Add Tenant","RENTALS",field("Full name","name")+select("Property","propertyId",opts(data.properties))+field("Unit","unit")+field("Phone","phone")+field("Email","email","email"),o=>{data.tenants.push({id:uid("t"),...o});save()})}
 function addLease(){modal("Add Lease","RENTALS",select("Tenant","tenantId",opts(data.tenants))+select("Property","propertyId",opts(data.properties))+field("Unit","unit")+field("Rent","rent","number")+field("Start","start","date")+field("End","end","date")+select("Status","status","<option>Active</option><option>Pending</option><option>Ended</option>"),o=>{data.leases.push({id:uid("l"),...o,rent:+o.rent||0});save()})}
-function addPayment(){modal("Record Payment","RENT",field("Date","date","date")+select("Property","propertyId",opts(data.properties))+select("Tenant","tenantId",opts(data.tenants))+select("Source","source","<option>Tenant</option><option>Section 8</option><option>CityFHEPS</option><option>Other Agency</option>")+field("Amount","amount","number")+select("Status","status","<option>Paid</option><option>Pending</option><option>Late</option>"),o=>{data.payments.unshift({id:uid("pay"),...o,amount:+o.amount||0});save()})}
+function addPayment(){
+  modal("Record Rent / Split Payment","RENT",
+    field("Date","date","date")+
+    select("Property","propertyId",opts(data.properties))+
+    select("Tenant","tenantId",opts(data.tenants))+
+    select("Payment type","paymentType","<option value=\"single\">Single payment</option><option value=\"split\">Split rent / multiple sources</option>")+
+    field("Total monthly rent","totalRent","number")+
+    '<div class="field full"><div class="privacy-note">For split rent, enter the tenant share and the subsidy/agency share separately. PropertyWorks will store each portion as its own payment line and keep the total tied to the same rent obligation.</div></div>'+
+    select("Primary source","source1","<option>Tenant</option><option>Section 8</option><option>CityFHEPS</option><option>Other Agency</option>")+
+    field("Primary amount","amount1","number")+
+    select("Second source","source2","<option>Section 8</option><option>CityFHEPS</option><option>Tenant</option><option>Other Agency</option><option value=\"None\">None</option>")+
+    field("Second amount","amount2","number")+
+    select("Status","status","<option>Paid</option><option>Pending</option><option>Late</option>")+
+    area("Notes","notes"),
+    async o=>{
+      const total=+o.totalRent||0, a1=+o.amount1||0, a2=+o.amount2||0;
+      if(!o.propertyId||!o.tenantId){alert("Choose the property and tenant.");return}
+      if(a1<=0){alert("Enter the payment amount.");return}
+      if(o.paymentType==="single"){
+        const row={id:uid("pay"),date:o.date,propertyId:o.propertyId,tenantId:o.tenantId,source:o.source1,amount:a1,status:o.status,totalRent:total||a1,splitGroup:null,notes:o.notes||""};
+        data.payments.unshift(row);save();
+        if(cloudUser&&["owner","admin"].includes(cloudProfileRole)){
+          const ins=await supabaseClient.from("payments").insert({owner_id:cloudUser.id,property_id:o.propertyId,tenant_user_id:null,payment_date:o.date||new Date().toISOString().slice(0,10),source:o.source1,amount:a1,status:o.status,notes:(o.notes||"")+(total?" | Monthly rent: "+total:"")});
+          if(ins.error)alert("Saved on this device, but cloud sync failed: "+ins.error.message);
+        }
+      }else{
+        if(o.source2==="None"||a2<=0){alert("For split rent, enter the second payment source and amount.");return}
+        const sum=a1+a2;
+        if(total && Math.abs(sum-total)>.01 && !confirm("The two portions total "+money(sum)+", but monthly rent is "+money(total)+". Save anyway?"))return;
+        const group=uid("split");
+        const rows=[
+          {id:uid("pay"),date:o.date,propertyId:o.propertyId,tenantId:o.tenantId,source:o.source1,amount:a1,status:o.status,totalRent:total||sum,splitGroup:group,splitPercent:(total?Math.round(a1/total*10000)/100:null),notes:o.notes||""},
+          {id:uid("pay"),date:o.date,propertyId:o.propertyId,tenantId:o.tenantId,source:o.source2,amount:a2,status:o.status,totalRent:total||sum,splitGroup:group,splitPercent:(total?Math.round(a2/total*10000)/100:null),notes:o.notes||""}
+        ];
+        data.payments.unshift(...rows);save();
+        if(cloudUser&&["owner","admin"].includes(cloudProfileRole)){
+          const cloudRows=rows.map(r=>({owner_id:cloudUser.id,property_id:r.propertyId,tenant_user_id:null,payment_date:r.date||new Date().toISOString().slice(0,10),source:r.source,amount:r.amount,status:r.status,notes:(r.notes||"")+" | Split rent "+(r.splitPercent??"")+"% | Total rent: "+r.totalRent+" | Group: "+group}));
+          const ins=await supabaseClient.from("payments").insert(cloudRows);
+          if(ins.error)alert("Saved on this device, but cloud sync failed: "+ins.error.message);
+        }
+      }
+      render();
+    },
+    "Record Payment"
+  )
+}
 function addMaintenance(){modal("Add Maintenance","WORK ORDER",field("Date","date","date")+select("Property","propertyId",opts(data.properties))+field("Unit / Area","unit")+field("Issue","title")+select("Priority","priority","<option>Normal</option><option>High</option><option>Urgent</option>")+select("Status","status","<option>Open</option><option>Scheduled</option><option>In Progress</option><option>Completed</option>"),o=>{data.maintenance.unshift({id:uid("m"),...o});save()})}
 function addDeal(){modal("Add Buy/Sell Deal","DEAL",field("Deal name","name")+select("Type","type","<option>Acquisition</option><option>Sale</option>")+field("Address","address")+field("Price / Target","price","number")+select("Stage","stage","<option>Researching</option><option>Offer</option><option>Under Contract</option><option>Closing</option><option>Closed</option>"),o=>{data.deals.unshift({id:uid("deal"),...o,price:+o.price||0});save()})}
 function addRenovation(){modal("Add Renovation Project","PROJECT",field("Project name","name")+select("Property","propertyId",opts(data.properties))+field("Budget","budget","number")+field("Spent","spent","number")+field("Contractor","contractor")+select("Status","status","<option>Planning</option><option>In Progress</option><option>On Hold</option><option>Completed</option>"),o=>{data.renovations.unshift({id:uid("r"),...o,budget:+o.budget||0,spent:+o.spent||0});save()})}
