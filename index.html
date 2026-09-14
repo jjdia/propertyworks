@@ -10,6 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <title>PropertyWorks</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f3f6f9;--surface:#ffffff;--surface2:#eef2f6;--ink:#0d1726;--muted:#425466;--line:#cbd5df;--navy:#082b4a;--blue:#075fa8;--blue2:#034b86;--green:#176b4d;--amber:#9a5d00;--red:#a92f2f;--shadow:0 10px 28px rgba(8,43,74,.10);--radius:18px}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-weight:500} h1,h2,h3,b,strong,.rowtitle,.propname{font-weight:800!important}button,input,select,textarea{font:inherit}button{cursor:pointer}
@@ -33,12 +34,16 @@ dialog{width:min(660px,92vw);border:0;border-radius:20px;padding:0;box-shadow:0 
 <body>
 <div class="app">
 <aside class="sidebar"><div class="brand"><div class="brandmark">PW</div><div><h1>PropertyWorks</h1><small>Real Estate Command Center</small></div></div><nav class="nav" id="desktopNav"></nav><div class="sidefoot"><div class="portfolio-mini"><b>Staten Island Portfolio</b><p>Manage · Buy · Sell · Renovate · Grow</p></div></div></aside>
-<main class="main"><header class="topbar"><div><h2 id="pageTitle">Overview</h2><p id="pageSub">Your entire real estate operation in one place.</p></div><div class="actions"><select id="roleSelect" class="role-select" onchange="switchRole(this.value)"><option value="owner">Owner / Admin</option><option value="tenant">Tenant View</option><option value="contractor">Technician / Handyman</option></select><button id="exportBtn" class="btn btn-soft" onclick="exportData()">Export</button><button id="addNewBtn" class="btn btn-primary" onclick="quickAdd()">＋ Add New</button></div></header><section class="content" id="content"></section></main>
+<main class="main"><header class="topbar"><div><h2 id="pageTitle">Overview</h2><p id="pageSub">Your entire real estate operation in one place.</p></div><div class="actions"><button id="cloudBtn" class="btn btn-soft" onclick="cloudAccountModal()">☁ Cloud</button><select id="roleSelect" class="role-select" onchange="switchRole(this.value)"><option value="owner">Owner / Admin</option><option value="tenant">Tenant View</option><option value="contractor">Technician / Handyman</option></select><button id="exportBtn" class="btn btn-soft" onclick="exportData()">Export</button><button id="addNewBtn" class="btn btn-primary" onclick="quickAdd()">＋ Add New</button></div></header><section class="content" id="content"></section></main>
 </div>
 <nav class="mobilebar" id="mobileNav"></nav>
 <dialog id="dlg"><form method="dialog" id="form" class="modal"><div class="modalhead"><div><small id="modalEyebrow">NEW</small><h3 id="modalTitle">Add</h3></div><button value="cancel" class="close">×</button></div><div id="modalBody"></div><div class="modalactions"><button value="cancel" class="btn btn-soft">Cancel</button><button value="default" class="btn btn-primary">Save</button></div></form></dialog>
 <script>
 const KEY="propertyworks_v3";
+const SUPABASE_URL="https://enxdxvwrkuikivkkewyn.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_ghGJ8MN9flcJafOSeDbwNQ_7kO7Jc10";
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+let cloudUser=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
 let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 const ownerNav=[["overview","⌂","Overview"],["properties","▦","Properties"],["rentals","$","Rentals"],["tenantAccounts","👤","Tenant Accounts"],["service","🛠","Service Requests"],["marketplace","⚒","Maintenance Marketplace"],["notifications","🔔","Notifications"],["automation","✦","Automation Agent"],["cameras","◉","Cameras"],["deals","↕","Buy & Sell"],["renovations","◇","Renovations"],["financials","↗","Financials"],["reports","▤","Reports & Tax Export"],["documents","▣","Documents"]]; const tenantNav=[["tenantHome","⌂","Home"],["tenantService","🛠","Maintenance"],["notifications","🔔","Notifications"]]; const contractorNav=[["contractorHome","⌂","Available Jobs"],["contractorMyJobs","⚒","My Jobs"],["contractorProfile","👤","Profile"],["notifications","🔔","Notifications"]];
@@ -57,6 +62,129 @@ function navRender(){
   }
 }
 function setHeader(t,s){pageTitle.textContent=t;pageSub.textContent=s}
+async function initCloud(){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  cloudUser=session?.user||null;
+  updateCloudButton();
+  if(cloudUser){
+    subscribeRealtime();
+  }
+}
+function updateCloudButton(){
+  const b=document.getElementById("cloudBtn"); if(!b)return;
+  b.textContent=cloudUser?"☁ Synced":"☁ Cloud";
+  b.style.background=cloudUser?"#e8f5ef":"";
+  b.style.color=cloudUser?"#176b4d":"";
+}
+function cloudAccountModal(){
+  if(cloudUser){cloudConnectedModal();return}
+  modal("PropertyWorks Cloud","SECURE ACCOUNT",
+    field("Email","email","email")+field("Password","password","password")+
+    '<div class="field full"><div class="privacy-note">Sign in to sync PropertyWorks across your iPhone, iPad and computer. Your password is handled by Supabase Auth and is not stored in PropertyWorks.</div></div><div class="field full"><button type="button" class="btn btn-soft" onclick="cloudCreateAccount()">Create Cloud Account</button></div>',
+    async o=>{await cloudSignIn(o.email,o.password)}
+  )
+}
+async function cloudSignIn(email,password){
+  const {data,error}=await supabaseClient.auth.signInWithPassword({email:email.trim(),password});
+  if(error){alert(error.message+"\n\nIf this is your first time, use Create Cloud Account.");return}
+  cloudUser=data.user; updateCloudButton(); subscribeRealtime(); alert("PropertyWorks Cloud connected."); await cloudPullOwnerData();
+}
+async function cloudCreateAccount(){
+  modal("Create Cloud Account","PROPERTYWORKS CLOUD",
+    field("Full name","fullName")+field("Email","email","email")+field("Password","password","password"),
+    async o=>{
+      if((o.password||"").length<8){alert("Use a password with at least 8 characters.");return}
+      const {data,error}=await supabaseClient.auth.signUp({email:o.email.trim(),password:o.password});
+      if(error){alert(error.message);return}
+      if(data.user){
+        cloudUser=data.user;
+        await supabaseClient.from("profiles").upsert({id:data.user.id,full_name:o.fullName,role:"owner"});
+        updateCloudButton();
+      }
+      alert(data.session?"Cloud account created.":"Cloud account created. Check your email to confirm it, then sign in.");
+    }
+  )
+}
+function cloudConnectedModal(){
+  modal("PropertyWorks Cloud","CONNECTED",
+    '<div class="field full"><div class="privacy-note"><b>'+esc(cloudUser?.email||"")+'</b><br>Cloud database, authentication and storage are connected.</div></div>'+
+    '<div class="field full"><button type="button" class="btn btn-primary" onclick="cloudPushLocalData()">Upload Current Portfolio to Cloud</button></div>'+
+    '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudPullOwnerData()">Refresh From Cloud</button></div>'+
+    '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div>',
+    ()=>{}
+  )
+}
+async function cloudSignOut(){await supabaseClient.auth.signOut();cloudUser=null;updateCloudButton();document.getElementById("dlg").close();alert("Signed out of PropertyWorks Cloud.")}
+async function cloudPushLocalData(){
+  if(!cloudUser){alert("Sign in first.");return}
+  const ownerId=cloudUser.id;
+  const idMap={};
+  for(const p of data.properties){
+    const row={owner_id:ownerId,name:p.name,address:p.address,property_type:p.type||null,units:+p.units||1,occupied_units:+p.occupied||0,scheduled_monthly_rent:+p.rent||0};
+    let result;
+    if(String(p.id).includes("-")&&String(p.id).length>30){
+      result=await supabaseClient.from("properties").upsert({id:p.id,...row}).select().single();
+    }else{
+      result=await supabaseClient.from("properties").insert(row).select().single();
+    }
+    if(result.error){alert("Property sync error: "+result.error.message);return}
+    idMap[p.id]=result.data.id; p.id=result.data.id;
+  }
+  const mapped=id=>idMap[id]||id;
+  for(const x of data.payments){
+    const row={owner_id:ownerId,property_id:mapped(x.propertyId),unit:x.unit||null,payment_date:x.date||new Date().toISOString().slice(0,10),source:x.source||"Tenant",amount:+x.amount||0,status:x.status||"Paid",notes:x.notes||null};
+    await supabaseClient.from("payments").insert(row);
+  }
+  for(const x of data.expenses){
+    const row={owner_id:ownerId,property_id:mapped(x.propertyId),expense_date:x.date||new Date().toISOString().slice(0,10),category:x.category||"Other",vendor:x.vendor||null,amount:+x.amount||0,description:x.description||null};
+    await supabaseClient.from("expenses").insert(row);
+  }
+  for(const x of data.maintenance){
+    const row={owner_id:ownerId,property_id:mapped(x.propertyId),unit:x.unit||null,title:x.title||x.category||"Maintenance request",description:x.description||null,priority:x.priority||"Normal",permission_to_enter:x.permission||null,status:x.status||"Open",marketplace_status:x.marketplaceStatus||null,payment_status:x.paymentStatus||null,payment_method:x.paymentMethod||null};
+    await supabaseClient.from("maintenance_requests").insert(row);
+  }
+  for(const x of data.renovations){
+    const row={owner_id:ownerId,property_id:mapped(x.propertyId),name:x.name||"Renovation",budget:+x.budget||0,spent:+x.spent||0,contractor:x.contractor||null,status:x.status||"Planning"};
+    await supabaseClient.from("renovations").insert(row);
+  }
+  for(const x of data.deals){
+    const row={owner_id:ownerId,name:x.name||"Deal",deal_type:x.type||null,address:x.address||null,price:+x.price||0,stage:x.stage||null,notes:x.notes||null};
+    await supabaseClient.from("deals").insert(row);
+  }
+  localStorage.setItem(KEY,JSON.stringify(data));
+  alert("Current PropertyWorks portfolio uploaded to the cloud.");
+  await cloudPullOwnerData();
+}
+async function cloudPullOwnerData(){
+  if(!cloudUser)return;
+  const ownerId=cloudUser.id;
+  const [pr,pa,ex,mr,re,de]=await Promise.all([
+    supabaseClient.from("properties").select("*").eq("owner_id",ownerId).order("created_at"),
+    supabaseClient.from("payments").select("*").eq("owner_id",ownerId).order("payment_date",{ascending:false}),
+    supabaseClient.from("expenses").select("*").eq("owner_id",ownerId).order("expense_date",{ascending:false}),
+    supabaseClient.from("maintenance_requests").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false}),
+    supabaseClient.from("renovations").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false}),
+    supabaseClient.from("deals").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false})
+  ]);
+  const err=[pr,pa,ex,mr,re,de].find(x=>x.error)?.error;
+  if(err){console.error(err);return}
+  if(pr.data?.length)data.properties=pr.data.map(p=>({id:p.id,name:p.name,address:p.address,type:p.property_type||"",units:p.units,occupied:p.occupied_units,rent:+p.scheduled_monthly_rent||0}));
+  data.payments=(pa.data||[]).map(x=>({id:x.id,propertyId:x.property_id,date:x.payment_date,source:x.source,amount:+x.amount||0,status:x.status,unit:x.unit||"",notes:x.notes||""}));
+  data.expenses=(ex.data||[]).map(x=>({id:x.id,propertyId:x.property_id,date:x.expense_date,category:x.category,vendor:x.vendor||"",amount:+x.amount||0,description:x.description||""}));
+  data.maintenance=(mr.data||[]).map(x=>({id:x.id,propertyId:x.property_id,unit:x.unit||"",title:x.title,description:x.description||"",priority:x.priority,status:x.status,marketplaceStatus:x.marketplace_status,paymentStatus:x.payment_status,paymentMethod:x.payment_method}));
+  data.renovations=(re.data||[]).map(x=>({id:x.id,propertyId:x.property_id,name:x.name,budget:+x.budget||0,spent:+x.spent||0,contractor:x.contractor||"",status:x.status}));
+  data.deals=(de.data||[]).map(x=>({id:x.id,name:x.name,type:x.deal_type||"",address:x.address||"",price:+x.price||0,stage:x.stage||"",notes:x.notes||""}));
+  localStorage.setItem(KEY,JSON.stringify(data));render();
+}
+function subscribeRealtime(){
+  if(!cloudUser||window._pwRealtime)return;
+  window._pwRealtime=supabaseClient.channel("propertyworks-live")
+    .on("postgres_changes",{event:"*",schema:"public",table:"maintenance_requests"},()=>cloudPullOwnerData())
+    .on("postgres_changes",{event:"*",schema:"public",table:"job_bids"},()=>{notifyParty("owner","Bid activity","A contractor bid changed in the marketplace.");render()})
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"user_id=eq."+cloudUser.id},payload=>{
+      const n=payload.new;try{if(Notification.permission==="granted")new Notification(n.title,{body:n.message})}catch(e){}
+    }).subscribe();
+}
 function notifyParty(party,title,message,meta={}){data.notifications.unshift({id:uid("n"),party,title,message,date:new Date().toISOString(),read:false,...meta});localStorage.setItem(KEY,JSON.stringify(data));try{if(Notification.permission==="granted"){new Notification(title,{body:message})}}catch(e){}}
 function requestDeviceNotifications(){if(!("Notification" in window)){alert("Notifications are not supported in this browser.");return}Notification.requestPermission().then(p=>alert(p==="granted"?"Notifications enabled.":"Notifications were not enabled."))}
 function notifications(){setHeader("Notifications","Updates for maintenance, bids, scheduling, completion and payment.");const roleParty=currentRole==="owner"?"owner":currentRole==="tenant"?"tenant":"contractor";const items=(data.notifications||[]).filter(n=>n.party===roleParty||n.party==="all");content.innerHTML='<div class="sectionbar"><div><b style="font-size:13px">Notification Center</b><div class="rowsub">Keep every party updated through the repair workflow.</div></div><button class="btn btn-primary" onclick="requestDeviceNotifications()">Enable Device Notifications</button></div><div class="card panel">'+(items.length?items.map(n=>'<div class="attnitem"><div class="attnicon">🔔</div><div class="attntext"><b>'+esc(n.title)+'</b><span>'+esc(n.message)+'</span></div><div class="attnright">'+new Date(n.date).toLocaleString()+'</div></div>').join(""):'<div class="empty">No notifications yet.</div>')+'</div>'}
@@ -162,6 +290,6 @@ function addDeal(){modal("Add Buy/Sell Deal","DEAL",field("Deal name","name")+se
 function addRenovation(){modal("Add Renovation Project","PROJECT",field("Project name","name")+select("Property","propertyId",opts(data.properties))+field("Budget","budget","number")+field("Spent","spent","number")+field("Contractor","contractor")+select("Status","status","<option>Planning</option><option>In Progress</option><option>On Hold</option><option>Completed</option>"),o=>{data.renovations.unshift({id:uid("r"),...o,budget:+o.budget||0,spent:+o.spent||0});save()})}
 function addExpense(){modal("Add Expense","FINANCIALS",field("Date","date","date")+select("Property","propertyId",opts(data.properties))+select("Category","category","<option>Repairs & Maintenance</option><option>Utilities</option><option>Insurance</option><option>Property Tax</option><option>Mortgage Interest</option><option>Legal / Professional</option><option>Other</option>")+field("Vendor","vendor")+field("Amount","amount","number"),o=>{data.expenses.unshift({id:uid("e"),...o,amount:+o.amount||0});save()})}
 function addDocument(){modal("Add Document","DOCUMENT",field("Name","name")+select("Property","propertyId",opts(data.properties))+select("Type","type","<option>Lease</option><option>Contract</option><option>Notice</option><option>Receipt / Invoice</option><option>Insurance</option><option>Tax</option><option>Other</option>")+field("Date","date","date")+area("Notes","notes"),o=>{data.documents.unshift({id:uid("d"),...o});save()})}
-function exportData(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download="propertyworks-backup.json";a.click()}if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"))}render();
+function exportData(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download="propertyworks-backup.json";a.click()}if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"))}render();initCloud();
 </script>
 </body></html>
