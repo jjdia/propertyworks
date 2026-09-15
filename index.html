@@ -496,7 +496,30 @@ function rentals(){
     '<div class="card mini"><div class="panelhead"><div><h3>Leases</h3><p>Dates, rent and status</p></div><button class="btn btn-soft" onclick="addLease()">Add</button></div>'+simpleList(data.leases,x=>tenant(x.tenantId)?.name||"Lease",x=>money(x.rent)+" · "+x.status)+'</div>'+
     '<div class="card mini"><div class="panelhead"><div><h3>Maintenance</h3><p>Open work orders</p></div><button class="btn btn-soft" onclick="addMaintenance()">Add</button></div>'+simpleList(data.maintenance,x=>x.title,x=>(prop(x.propertyId)?.name||"")+" · "+x.status)+'</div></div>';
 }
-function tenantList(){return data.tenants.length?data.tenants.map(x=>'<div class="kv"><div><b>'+esc(x.name)+'</b><div class="rowsub">'+esc((prop(x.propertyId)?.name||"")+' · '+(x.unit||""))+'</div></div><button class="btn btn-soft" style="color:var(--red);margin-left:10px" onclick="deleteTenant(\''+x.id+'\')">Delete</button></div>').join(""):'<div class="empty">Nothing here yet.</div>'}
+function tenantList(){return data.tenants.length?data.tenants.map(x=>'<div class="kv"><div><b>'+esc(x.name)+'</b><div class="rowsub">'+esc((prop(x.propertyId)?.name||"")+' · '+(x.unit||"")+(x.subsidyProgram?' · '+x.subsidyProgram:'')+(x.tenantPortion?' · Tenant '+money(x.tenantPortion):''))+'</div></div><div class="job-actions"><button class="btn btn-soft" onclick="editTenant(\''+x.id+'\')">Edit</button><button class="btn btn-soft" style="color:var(--red)" onclick="deleteTenant(\''+x.id+'\')">Delete</button></div></div>').join(""):'<div class="empty">Nothing here yet.</div>'}
+function editTenant(id){
+  const t=data.tenants.find(x=>x.id===id);if(!t)return;
+  const body=
+    '<div class="field"><label>Full name</label><input name="name" value="'+esc(t.name||"")+'"></div>'+
+    '<div class="field"><label>Property</label><select name="propertyId">'+data.properties.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===t.propertyId?'selected':'')+'>'+esc(p.name)+'</option>').join("")+'</select></div>'+
+    '<div class="field"><label>Unit / Apartment</label><input name="unit" value="'+esc(t.unit||"")+'"></div>'+
+    '<div class="field"><label>Phone</label><input name="phone" value="'+esc(t.phone||"")+'"></div>'+
+    '<div class="field"><label>Email</label><input name="email" type="email" value="'+esc(t.email||"")+'"></div>'+
+    '<div class="field"><label>Lease start</label><input name="leaseStart" type="date" value="'+esc(t.leaseStart||"")+'"></div>'+
+    '<div class="field"><label>Lease end</label><input name="leaseEnd" type="date" value="'+esc(t.leaseEnd||"")+'"></div>'+
+    '<div class="field"><label>Total monthly rent</label><input name="monthlyRent" type="number" step="0.01" value="'+(+t.monthlyRent||0)+'"></div>'+
+    '<div class="field"><label>Subsidy program</label><select name="subsidyProgram"><option value="" '+(!t.subsidyProgram?'selected':'')+'>None</option><option '+(t.subsidyProgram==="Section 8"?'selected':'')+'>Section 8</option><option '+(t.subsidyProgram==="CityFHEPS"?'selected':'')+'>CityFHEPS</option><option '+(t.subsidyProgram==="Other Agency"?'selected':'')+'>Other Agency</option></select></div>'+
+    '<div class="field"><label>Government portion</label><input name="governmentPortion" type="number" step="0.01" value="'+(+t.governmentPortion||0)+'"></div>'+
+    '<div class="field"><label>Tenant portion</label><input name="tenantPortion" type="number" step="0.01" value="'+(+t.tenantPortion||0)+'"></div>'+
+    '<div class="field"><label>Tenant rent due day</label><input name="rentDueDay" type="number" min="1" max="31" value="'+(+t.rentDueDay||1)+'"></div>'+
+    '<div class="field"><label>Security deposit</label><input name="securityDeposit" type="number" step="0.01" value="'+(+t.securityDeposit||0)+'"></div>'+
+    '<div class="field"><label>Emergency contact name</label><input name="emergencyName" value="'+esc(t.emergencyName||"")+'"></div>'+
+    '<div class="field"><label>Emergency contact phone</label><input name="emergencyPhone" value="'+esc(t.emergencyPhone||"")+'"></div>'+
+    '<div class="field"><label>Other occupants</label><input name="occupants" value="'+esc(t.occupants||"")+'"></div>'+
+    '<div class="field"><label>Pets</label><input name="pets" value="'+esc(t.pets||"")+'"></div>'+
+    '<div class="field full"><label>Tenant notes</label><textarea name="notes">'+esc(t.notes||"")+'</textarea></div>';
+  modal("Edit Tenant","TENANT PROFILE",body,o=>{Object.assign(t,{...o,monthlyRent:+o.monthlyRent||0,governmentPortion:+o.governmentPortion||0,tenantPortion:+o.tenantPortion||0,rentDueDay:+o.rentDueDay||1,securityDeposit:+o.securityDeposit||0});save();},"Update Tenant")
+}
 function deleteTenant(id){
   const t=data.tenants.find(x=>x.id===id); if(!t)return;
   const leaseCount=data.leases.filter(x=>x.tenantId===id).length;
@@ -547,6 +570,25 @@ function rentObligationsTable(propertyId){
       return '<tr><td>'+esc((r.rentMonth||"").slice(0,7))+'</td><td class="rowtitle">'+esc(prop(r.propertyId)?.name||"")+' · '+esc(r.unit||"")+'</td><td>'+esc(t?.name||"—")+'</td><td>'+money(r.totalRent)+'</td><td>'+money(r.governmentPortion)+'<div class="rowsub">'+esc(r.governmentSource||"")+'</div></td><td>'+money(r.tenantPortion)+'</td><td>'+esc(r.tenantDueDate?df(r.tenantDueDate):"—")+'</td><td>'+esc(r.tenantPaidDate?df(r.tenantPaidDate):"—")+'</td><td><b>'+money(rentTenantBalance(r))+'</b></td><td><span class="status '+(st==="Paid"?"good":st==="Late"?"bad":"warn")+'">'+st+'</span></td><td><div class="job-actions"><button class="btn btn-soft" onclick="editRentObligation(\''+r.id+'\')">Edit</button>'+(st==="Late"?'<button class="btn btn-primary" onclick="sendRentReminder(\''+r.id+'\')">Notify</button>':"")+'</div></td></tr>';
     }).join("")+'</tbody></table></div>';
 }
+
+function tenantRentDefaults(tenantId){
+  const t=tenant(tenantId);if(!t)return;
+  const total=document.querySelector('#dlg [name="totalRent"]');
+  const gov=document.querySelector('#dlg [name="governmentPortion"]');
+  const ten=document.querySelector('#dlg [name="tenantPortion"]');
+  const prog=document.querySelector('#dlg [name="governmentSource"]');
+  const unit=document.querySelector('#dlg [name="unit"]');
+  const due=document.querySelector('#dlg [name="tenantDueDate"]');
+  if(total)total.value=t.monthlyRent||"";
+  if(gov)gov.value=t.governmentPortion||"";
+  if(ten)ten.value=t.tenantPortion||"";
+  if(prog)prog.value=t.subsidyProgram||"";
+  if(unit)unit.value=t.unit||"";
+  if(due&&t.rentDueDay){
+    const m=document.querySelector('#dlg [name="rentMonth"]')?.value;
+    if(m){const day=String(Math.min(+t.rentDueDay||1,28)).padStart(2,"0");due.value=m+"-"+day}
+  }
+}
 function addRentObligation(propertyId){
   const pid=propertyId||data.properties[0]?.id||"";
   const propOptions=data.properties.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===pid?"selected":"")+'>'+esc(p.name)+'</option>').join("");
@@ -554,7 +596,7 @@ function addRentObligation(propertyId){
   modal("Add Monthly Rent","UNIT RENT TRACKING",
     '<div class="field"><label>Property</label><select name="propertyId">'+propOptions+'</select></div>'+
     field("Unit / Apartment","unit")+
-    '<div class="field"><label>Tenant</label><select name="tenantId">'+tenantOptions+'</select></div>'+
+    '<div class="field"><label>Tenant</label><select name="tenantId" onchange="tenantRentDefaults(this.value)">'+tenantOptions+'</select></div>'+
     field("Rent month","rentMonth","month")+
     field("Total rental income","totalRent","number",'min="0" step="0.01"')+
     select("Government program","governmentSource",'<option value="">None</option><option>Section 8</option><option>CityFHEPS</option><option>Other Agency</option>')+
@@ -902,7 +944,32 @@ function editProperty(id){
   '<div class="field"><label>Monthly rent</label><input name="rent" type="number" min="0" value="'+(+p.rent||0)+'"></div>';
   modal("Edit Property","PROPERTY",body,o=>{Object.assign(p,{name:o.name,address:o.address,type:o.type,units:+o.units||1,occupied:+o.occupied||0,rent:+o.rent||0});save()})
 }
-function addTenant(){modal("Add Tenant","RENTALS",field("Full name","name")+select("Property","propertyId",opts(data.properties))+field("Unit","unit")+field("Phone","phone")+field("Email","email","email"),o=>{data.tenants.push({id:uid("t"),...o});save()})}
+function addTenant(){
+  modal("Add Tenant","TENANT PROFILE",
+    field("Full name","name")+
+    select("Property","propertyId",opts(data.properties))+
+    field("Unit / Apartment","unit")+
+    field("Phone","phone")+
+    field("Email","email","email")+
+    field("Lease start","leaseStart","date")+
+    field("Lease end","leaseEnd","date")+
+    field("Total monthly rent","monthlyRent","number",'min="0" step="0.01"')+
+    select("Subsidy program","subsidyProgram",'<option value="">None</option><option>Section 8</option><option>CityFHEPS</option><option>Other Agency</option>')+
+    field("Government portion","governmentPortion","number",'min="0" step="0.01"')+
+    field("Tenant portion","tenantPortion","number",'min="0" step="0.01"')+
+    field("Tenant rent due day","rentDueDay","number",'min="1" max="31" placeholder="1"')+
+    field("Security deposit","securityDeposit","number",'min="0" step="0.01"')+
+    field("Emergency contact name","emergencyName")+
+    field("Emergency contact phone","emergencyPhone")+
+    field("Other occupants","occupants")+
+    field("Pets","pets")+
+    area("Tenant notes","notes"),
+    o=>{
+      data.tenants.push({id:uid("t"),...o,monthlyRent:+o.monthlyRent||0,governmentPortion:+o.governmentPortion||0,tenantPortion:+o.tenantPortion||0,rentDueDay:+o.rentDueDay||1,securityDeposit:+o.securityDeposit||0});
+      save();
+    },"Add Tenant"
+  )
+}
 function addLease(){modal("Add Lease","RENTALS",select("Tenant","tenantId",opts(data.tenants))+select("Property","propertyId",opts(data.properties))+field("Unit","unit")+field("Rent","rent","number")+field("Start","start","date")+field("End","end","date")+select("Status","status","<option>Active</option><option>Pending</option><option>Ended</option>"),o=>{data.leases.push({id:uid("l"),...o,rent:+o.rent||0});save()})}
 function addPayment(){
   modal("Record Rent / Split Payment","RENT",
