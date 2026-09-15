@@ -46,7 +46,7 @@ const SUPABASE_PUBLISHABLE_KEY="sb_publishable_ghGJ8MN9flcJafOSeDbwNQ_7kO7Jc10";
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 let cloudUser=null; let cloudProfileRole=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
-let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 const ownerNav=[["overview","⌂","Dashboard"],["properties","▦","Properties"],["rentals","$","Rentals"],["leaseGenerator","✎","Lease Generator"],["tenantAccounts","👤","Tenant Accounts"],["service","🛠","Service Requests"],["marketplace","⚒","Maintenance Marketplace"],["notifications","🔔","Notifications"],["broadcasts","📣","Broadcast Center"],["automation","✦","Automation Agent"],["cameras","◉","Cameras"],["deals","↕","Buy & Sell"],["renovations","◇","Renovations"],["financials","↗","Financials"],["reports","▤","Reports & Tax Export"],["documents","▣","Documents"]]; const tenantNav=[["tenantHome","⌂","Home"],["tenantService","🛠","Maintenance"],["notifications","🔔","Notifications"]]; const contractorNav=[["contractorHome","⌂","Available Jobs"],["contractorMyJobs","⚒","My Jobs"],["contractorProfile","👤","Profile"],["notifications","🔔","Notifications"]];
 function navRender(){
   const nav=currentRole==="tenant"?(tenantSession?tenantNav:[]):currentRole==="contractor"?contractorNav:ownerNav;
@@ -439,7 +439,7 @@ function propertyCard(p){
   const o=Math.round((p.occupied/p.units)*100);
   const pi=data.payments.filter(x=>x.propertyId===p.id&&x.status==="Paid").reduce((a,b)=>a+(+b.amount||0),0);
   const pe=data.expenses.filter(x=>x.propertyId===p.id).reduce((a,b)=>a+(+b.amount||0),0);
-  return '<div class="card property"><div class="propcover"><div class="propbadge">'+esc(p.name.split(" ").pop()[0])+'</div><span class="chip good">'+o+'% occupied</span></div><div class="propbody"><div class="propname">'+esc(p.name)+'</div><div class="propaddr">'+esc(p.address)+'</div><div class="propstats"><div class="stat"><b>'+p.units+'</b><span>Units</span></div><div class="stat"><b>'+p.occupied+'</b><span>Occupied</span></div><div class="stat"><b>'+money(p.rent)+'</b><span>Rent/mo</span></div></div><div class="kv"><span>Recorded income</span><b>'+money(pi)+'</b></div><div class="kv"><span>Expenses</span><b>'+money(pe)+'</b></div><div class="kv"><span>Net</span><b>'+money(pi-pe)+'</b></div><div class="job-actions" style="margin-top:12px"><button class="btn btn-primary" onclick="propertyFinancials(\''+p.id+'\')">Financials</button><button class="btn btn-soft" onclick="addExpenseForProperty(\''+p.id+'\')">＋ Expense</button><button class="btn btn-soft" onclick="editProperty(\''+p.id+'\')">Edit</button><button class="btn btn-soft" style="color:var(--red)" onclick="deleteProperty(\''+p.id+'\')">Delete</button></div></div></div>'
+  return '<div class="card property"><div class="propcover"><div class="propbadge">'+esc(p.name.split(" ").pop()[0])+'</div><span class="chip good">'+o+'% occupied</span></div><div class="propbody"><div class="propname">'+esc(p.name)+'</div><div class="propaddr">'+esc(p.address)+'</div><div class="propstats"><div class="stat"><b>'+p.units+'</b><span>Units</span></div><div class="stat"><b>'+p.occupied+'</b><span>Occupied</span></div><div class="stat"><b>'+money(p.rent)+'</b><span>Rent/mo</span></div></div><div class="kv"><span>Recorded income</span><b>'+money(pi)+'</b></div><div class="kv"><span>Expenses</span><b>'+money(pe)+'</b></div><div class="kv"><span>Net</span><b>'+money(pi-pe)+'</b></div><div class="job-actions" style="margin-top:12px"><button class="btn btn-primary" onclick="propertyFinancials(\''+p.id+'\')">Financials</button><button class="btn btn-soft" onclick="propertyRentTracking(\''+p.id+'\')">Rent Tracking</button><button class="btn btn-soft" onclick="addExpenseForProperty(\''+p.id+'\')">＋ Expense</button><button class="btn btn-soft" onclick="editProperty(\''+p.id+'\')">Edit</button><button class="btn btn-soft" style="color:var(--red)" onclick="deleteProperty(\''+p.id+'\')">Delete</button></div></div></div>'
 }
 function propertyFinancials(propertyId){
   const p=prop(propertyId);if(!p)return;
@@ -479,7 +479,22 @@ function addExpenseForProperty(propertyId){
   )
 }
 function properties(){setHeader("Properties","All owned assets, occupancy and operating details.");content.innerHTML='<div class="sectionbar"><input class="search" placeholder="Search properties"><button class="btn btn-primary" onclick="addProperty()">＋ Add Property</button></div><div class="propertygrid">'+data.properties.map(propertyCard).join("")+'</div>'}
-function rentals(){setHeader("Rentals","Tenants, leases, rent payments and maintenance in one workflow.");content.innerHTML='<div class="kpis">'+metric("Tenants",data.tenants.length,"Active tenant records","👥")+metric("Active Leases",data.leases.filter(x=>x.status==="Active").length,"Current agreements","▤")+metric("Payments",data.payments.length,"Ledger transactions","$")+metric("Maintenance",data.maintenance.filter(x=>x.status!=="Completed").length,"Open work orders","◇")+'</div><div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Rent Ledger</b><div class="rowsub">Track tenant and agency payments</div></div><button class="btn btn-primary" onclick="addPayment()">＋ Record Payment</button></div>'+paymentTable()+'</div><div class="mini-grid" style="margin-top:16px"><div class="card mini"><div class="panelhead"><div><h3>Tenants</h3><p>Contacts and units</p></div><button class="btn btn-soft" onclick="addTenant()">Add</button></div>'+tenantList()+'</div><div class="card mini"><div class="panelhead"><div><h3>Leases</h3><p>Dates, rent and status</p></div><button class="btn btn-soft" onclick="addLease()">Add</button></div>'+simpleList(data.leases,x=>tenant(x.tenantId)?.name||"Lease",x=>money(x.rent)+" · "+x.status)+'</div><div class="card mini"><div class="panelhead"><div><h3>Maintenance</h3><p>Open work orders</p></div><button class="btn btn-soft" onclick="addMaintenance()">Add</button></div>'+simpleList(data.maintenance,x=>x.title,x=>(prop(x.propertyId)?.name||"")+" · "+x.status)+'</div></div>'}
+function rentals(){
+  setHeader("Rentals","Track tenants, monthly rent obligations, split portions, payments and maintenance.");
+  const late=(data.rentObligations||[]).filter(r=>rentObligationStatus(r)==="Late").length;
+  content.innerHTML=
+    '<div class="kpis">'+
+      metric("Tenants",data.tenants.length,"Active tenant records","👥")+
+      metric("Active Leases",data.leases.filter(x=>x.status==="Active").length,"Current agreements","▤")+
+      metric("Late Tenant Portions",late,"Needs collection follow-up","!")+ 
+      metric("Maintenance",data.maintenance.filter(x=>x.status!=="Completed").length,"Open work orders","◇")+
+    '</div>'+
+    '<div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Monthly Rent Collections</b><div class="rowsub">Total rent, government share, tenant share, due date, paid date and balance.</div></div><button class="btn btn-primary" onclick="addRentObligation()">＋ Add Monthly Rent</button></div>'+rentObligationsTable()+'</div>'+
+    '<div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Payment Ledger</b><div class="rowsub">Actual tenant and agency payments received</div></div><button class="btn btn-primary" onclick="addPayment()">＋ Record Payment</button></div>'+paymentTable()+'</div>'+
+    '<div class="mini-grid" style="margin-top:16px"><div class="card mini"><div class="panelhead"><div><h3>Tenants</h3><p>Contacts and units</p></div><button class="btn btn-soft" onclick="addTenant()">Add</button></div>'+tenantList()+'</div>'+
+    '<div class="card mini"><div class="panelhead"><div><h3>Leases</h3><p>Dates, rent and status</p></div><button class="btn btn-soft" onclick="addLease()">Add</button></div>'+simpleList(data.leases,x=>tenant(x.tenantId)?.name||"Lease",x=>money(x.rent)+" · "+x.status)+'</div>'+
+    '<div class="card mini"><div class="panelhead"><div><h3>Maintenance</h3><p>Open work orders</p></div><button class="btn btn-soft" onclick="addMaintenance()">Add</button></div>'+simpleList(data.maintenance,x=>x.title,x=>(prop(x.propertyId)?.name||"")+" · "+x.status)+'</div></div>';
+}
 function tenantList(){return data.tenants.length?data.tenants.map(x=>'<div class="kv"><div><b>'+esc(x.name)+'</b><div class="rowsub">'+esc((prop(x.propertyId)?.name||"")+' · '+(x.unit||""))+'</div></div><button class="btn btn-soft" style="color:var(--red);margin-left:10px" onclick="deleteTenant(\''+x.id+'\')">Delete</button></div>').join(""):'<div class="empty">Nothing here yet.</div>'}
 function deleteTenant(id){
   const t=data.tenants.find(x=>x.id===id); if(!t)return;
@@ -510,7 +525,89 @@ function deleteProperty(id){
   authData.accounts=(authData.accounts||[]).filter(x=>x.propertyId!==id);
   saveAuth(); save();
 }
-function simpleList(arr,title,sub){return arr.length?arr.slice(0,4).map(x=>'<div class="kv"><div><b>'+esc(title(x))+'</b><div class="rowsub">'+esc(sub(x)||"")+'</div></div></div>').join(""):'<div class="empty">Nothing here yet.</div>'}function paymentTable(){return data.payments.length?'<div class="tablecard"><table><thead><tr><th>Date</th><th>Property</th><th>Tenant</th><th>Source</th><th>Portion</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+data.payments.map(x=>'<tr><td>'+df(x.date)+'</td><td>'+esc(prop(x.propertyId)?.name||"")+'</td><td class="rowtitle">'+esc(tenant(x.tenantId)?.name||"—")+'</td><td>'+esc(x.source||"Tenant")+'</td><td>'+(x.splitGroup?(x.splitPercent!=null?x.splitPercent+"%":"Split"):"—")+'</td><td>'+money(x.amount)+'</td><td><span class="status '+(x.status==="Paid"?"good":x.status==="Late"?"bad":"warn")+'">'+esc(x.status)+'</span></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No rent transactions yet.</div>'}
+function simpleList(arr,title,sub){return arr.length?arr.slice(0,4).map(x=>'<div class="kv"><div><b>'+esc(title(x))+'</b><div class="rowsub">'+esc(sub(x)||"")+'</div></div></div>').join(""):'<div class="empty">Nothing here yet.</div>'}
+function rentObligationStatus(r){
+  const portion=+r.tenantPortion||0, paid=+r.tenantAmountPaid||0;
+  if(portion<=0 || paid>=portion)return "Paid";
+  const due=r.tenantDueDate?new Date(r.tenantDueDate+"T23:59:59"):null;
+  if(due && new Date()>due)return "Late";
+  if(paid>0)return "Partial";
+  return "Due";
+}
+function rentTenantBalance(r){return Math.max(0,(+r.tenantPortion||0)-(+r.tenantAmountPaid||0))}
+function rentObligationsTable(propertyId){
+  let rows=(data.rentObligations||[]);
+  if(propertyId)rows=rows.filter(r=>r.propertyId===propertyId);
+  rows=rows.slice().sort((a,b)=>(b.rentMonth||"").localeCompare(a.rentMonth||""));
+  if(!rows.length)return '<div class="empty">No monthly rent records yet.</div>';
+  return '<div class="tablecard"><table><thead><tr><th>Month</th><th>Property / Unit</th><th>Tenant</th><th>Total</th><th>Government</th><th>Tenant</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>'+
+    rows.map(r=>{
+      const st=rentObligationStatus(r), t=tenant(r.tenantId);
+      return '<tr><td>'+esc((r.rentMonth||"").slice(0,7))+'</td><td class="rowtitle">'+esc(prop(r.propertyId)?.name||"")+' · '+esc(r.unit||"")+'</td><td>'+esc(t?.name||"—")+'</td><td>'+money(r.totalRent)+'</td><td>'+money(r.governmentPortion)+'<div class="rowsub">'+esc(r.governmentSource||"")+'</div></td><td>'+money(r.tenantPortion)+'</td><td>'+esc(r.tenantDueDate?df(r.tenantDueDate):"—")+'</td><td>'+esc(r.tenantPaidDate?df(r.tenantPaidDate):"—")+'</td><td><b>'+money(rentTenantBalance(r))+'</b></td><td><span class="status '+(st==="Paid"?"good":st==="Late"?"bad":"warn")+'">'+st+'</span></td><td><div class="job-actions"><button class="btn btn-soft" onclick="editRentObligation(\''+r.id+'\')">Edit</button>'+(st==="Late"?'<button class="btn btn-primary" onclick="sendRentReminder(\''+r.id+'\')">Notify</button>':"")+'</div></td></tr>';
+    }).join("")+'</tbody></table></div>';
+}
+function addRentObligation(propertyId){
+  const pid=propertyId||data.properties[0]?.id||"";
+  const propOptions=data.properties.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===pid?"selected":"")+'>'+esc(p.name)+'</option>').join("");
+  const tenantOptions='<option value="">Select tenant</option>'+data.tenants.filter(t=>!pid||t.propertyId===pid).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+(t.unit?" · "+esc(t.unit):"")+'</option>').join("");
+  modal("Add Monthly Rent","UNIT RENT TRACKING",
+    '<div class="field"><label>Property</label><select name="propertyId">'+propOptions+'</select></div>'+
+    field("Unit / Apartment","unit")+
+    '<div class="field"><label>Tenant</label><select name="tenantId">'+tenantOptions+'</select></div>'+
+    field("Rent month","rentMonth","month")+
+    field("Total rental income","totalRent","number",'min="0" step="0.01"')+
+    select("Government program","governmentSource",'<option value="">None</option><option>Section 8</option><option>CityFHEPS</option><option>Other Agency</option>')+
+    field("Government portion","governmentPortion","number",'min="0" step="0.01"')+
+    field("Tenant portion","tenantPortion","number",'min="0" step="0.01"')+
+    field("Tenant due date","tenantDueDate","date")+
+    field("Tenant amount paid","tenantAmountPaid","number",'min="0" step="0.01"')+
+    field("Tenant paid date","tenantPaidDate","date")+
+    area("Notes","notes"),
+    async o=>{
+      const total=+o.totalRent||0, gov=+o.governmentPortion||0, ten=+o.tenantPortion||0;
+      if(!o.rentMonth||!o.unit){alert("Enter the rent month and unit.");return}
+      if(total && Math.abs((gov+ten)-total)>.01 && !confirm("Government + tenant portions do not equal total rent. Save anyway?"))return;
+      const row={id:uid("rent"),propertyId:o.propertyId,unit:o.unit,tenantId:o.tenantId||"",rentMonth:o.rentMonth+"-01",totalRent:total,governmentSource:o.governmentSource||"",governmentPortion:gov,tenantPortion:ten,tenantDueDate:o.tenantDueDate||"",tenantAmountPaid:+o.tenantAmountPaid||0,tenantPaidDate:o.tenantPaidDate||"",notes:o.notes||""};
+      data.rentObligations.unshift(row);save();
+      if(cloudUser&&["owner","admin"].includes(cloudProfileRole)){
+        const st=rentObligationStatus(row);
+        const ins=await supabaseClient.from("rent_obligations").upsert({owner_id:cloudUser.id,property_id:row.propertyId,unit:row.unit,rent_month:row.rentMonth,total_rent:row.totalRent,government_source:row.governmentSource||null,government_portion:row.governmentPortion,tenant_portion:row.tenantPortion,tenant_due_date:row.tenantDueDate||null,tenant_paid_date:row.tenantPaidDate||null,tenant_amount_paid:row.tenantAmountPaid,status:st,notes:row.notes||null},{onConflict:"owner_id,property_id,unit,rent_month"});
+        if(ins.error)alert("Saved on this device, but cloud sync failed: "+ins.error.message);
+      }
+      render();
+    },"Save Monthly Rent"
+  )
+}
+function editRentObligation(id){
+  const r=(data.rentObligations||[]).find(x=>x.id===id);if(!r)return;
+  modal("Update Tenant Portion","RENT COLLECTION",
+    field("Tenant amount paid","tenantAmountPaid","number",'min="0" step="0.01" value="'+(+r.tenantAmountPaid||0)+'"')+
+    field("Tenant paid date","tenantPaidDate","date",'value="'+esc(r.tenantPaidDate||"")+'"')+
+    field("Tenant due date","tenantDueDate","date",'value="'+esc(r.tenantDueDate||"")+'"')+
+    area("Notes","notes"),
+    o=>{r.tenantAmountPaid=+o.tenantAmountPaid||0;r.tenantPaidDate=o.tenantPaidDate||"";r.tenantDueDate=o.tenantDueDate||r.tenantDueDate;r.notes=o.notes||r.notes||"";save();render();},
+    "Update Rent"
+  )
+}
+async function sendRentReminder(id){
+  const r=(data.rentObligations||[]).find(x=>x.id===id);if(!r)return;
+  const t=tenant(r.tenantId), bal=rentTenantBalance(r);
+  const msg='Your tenant rent portion of '+money(r.tenantPortion)+' for '+(r.rentMonth||"").slice(0,7)+' was due '+df(r.tenantDueDate)+'. Current unpaid balance: '+money(bal)+'. Please submit payment or contact management if you believe this is incorrect.';
+  if(cloudUser){
+    const ta=await supabaseClient.from("tenant_assignments").select("tenant_user_id").eq("owner_id",cloudUser.id).eq("property_id",r.propertyId).eq("unit",r.unit).eq("active",true).maybeSingle();
+    if(ta.data?.tenant_user_id){
+      const n=await supabaseClient.from("notifications").insert({user_id:ta.data.tenant_user_id,title:"Rent Payment Reminder",message:msg});
+      if(!n.error){alert("Private rent reminder sent to "+(t?.name||"tenant")+".");return}
+    }
+  }
+  alert("This tenant does not yet have a connected cloud tenant account. The reminder is ready once their tenant account is activated.");
+}
+function propertyRentTracking(propertyId){
+  const p=prop(propertyId);if(!p)return;
+  setHeader(p.name+" — Unit Rent Tracking","Monthly rental income, government/tenant splits, due dates and collection status.");
+  content.innerHTML='<div class="sectionbar"><div><b style="font-size:13px">'+esc(p.address)+'</b><div class="rowsub">Monthly records are tied to this property and unit.</div></div><div class="job-actions"><button class="btn btn-soft" onclick="setView(\'properties\')">Back</button><button class="btn btn-primary" onclick="addRentObligation(\''+propertyId+'\')">＋ Add Monthly Rent</button></div></div>'+rentObligationsTable(propertyId);
+}
+function paymentTable(){return data.payments.length?'<div class="tablecard"><table><thead><tr><th>Date</th><th>Property</th><th>Tenant</th><th>Source</th><th>Portion</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+data.payments.map(x=>'<tr><td>'+df(x.date)+'</td><td>'+esc(prop(x.propertyId)?.name||"")+'</td><td class="rowtitle">'+esc(tenant(x.tenantId)?.name||"—")+'</td><td>'+esc(x.source||"Tenant")+'</td><td>'+(x.splitGroup?(x.splitPercent!=null?x.splitPercent+"%":"Split"):"—")+'</td><td>'+money(x.amount)+'</td><td><span class="status '+(x.status==="Paid"?"good":x.status==="Late"?"bad":"warn")+'">'+esc(x.status)+'</span></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No rent transactions yet.</div>'}
 function deals(){setHeader("Buy & Sell","Track acquisitions, listings, offers and closings.");content.innerHTML='<div class="sectionbar"><div></div><button class="btn btn-primary" onclick="addDeal()">＋ Add Deal</button></div><div class="mini-grid">'+(data.deals.length?data.deals.map(d=>'<div class="card mini"><div class="panelhead"><div><h3>'+esc(d.name)+'</h3><p>'+esc(d.type)+' · '+esc(d.stage)+'</p></div><span class="chip">'+money(d.price)+'</span></div><div class="kv"><span>Property</span><b>'+esc(d.address||"—")+'</b></div><div class="kv"><span>Target / Price</span><b>'+money(d.price)+'</b></div><div class="kv"><span>Stage</span><b>'+esc(d.stage)+'</b></div></div>').join(""):'<div class="card empty">No acquisitions or sales tracked yet.</div>')+'</div>'}
 function renovations(){setHeader("Renovations","Budgets, contractors, projects and completion status.");content.innerHTML='<div class="sectionbar"><div></div><button class="btn btn-primary" onclick="addRenovation()">＋ Add Project</button></div><div class="mini-grid">'+(data.renovations.length?data.renovations.map(r=>'<div class="card mini"><div class="panelhead"><div><h3>'+esc(r.name)+'</h3><p>'+esc(prop(r.propertyId)?.name||"")+'</p></div><span class="chip '+(r.status==="Completed"?"good":"warn")+'">'+esc(r.status)+'</span></div><div class="kv"><span>Budget</span><b>'+money(r.budget)+'</b></div><div class="kv"><span>Spent</span><b>'+money(r.spent)+'</b></div><div class="kv"><span>Contractor</span><b>'+esc(r.contractor||"—")+'</b></div></div>').join(""):'<div class="card empty">No renovation projects yet.</div>')+'</div>'}
 function financials(){setHeader("Financials","Income, expenses and property-level performance.");const inc=data.payments.filter(x=>x.status==="Paid").reduce((a,b)=>a+(+b.amount||0),0),exp=data.expenses.reduce((a,b)=>a+(+b.amount||0),0);content.innerHTML='<div class="kpis">'+metric("Recorded Income",money(inc),"Paid transactions","$")+metric("Recorded Expenses",money(exp),"Operating expenses","−")+metric("Recorded Net",money(inc-exp),"Income less expenses","↗")+metric("Properties",data.properties.length,"Owned assets","⌂")+'</div><div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Expenses</b><div class="rowsub">Repairs, taxes, utilities and more</div></div><button class="btn btn-primary" onclick="addExpense()">＋ Add Expense</button></div>'+expenseTable()+'</div>'}function expenseTable(){return data.expenses.length?'<div class="tablecard"><table><thead><tr><th>Date</th><th>Property</th><th>Category</th><th>Vendor</th><th>Amount</th></tr></thead><tbody>'+data.expenses.map(e=>'<tr><td>'+df(e.date)+'</td><td>'+esc(prop(e.propertyId)?.name||"")+'</td><td>'+esc(e.category)+'</td><td>'+esc(e.vendor||"—")+'</td><td>'+money(e.amount)+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No expenses entered yet.</div>'}
