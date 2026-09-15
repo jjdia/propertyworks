@@ -46,7 +46,17 @@ const SUPABASE_PUBLISHABLE_KEY="sb_publishable_ghGJ8MN9flcJafOSeDbwNQ_7kO7Jc10";
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 let cloudUser=null; let cloudProfileRole=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
-let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+
+function ensureDefaultRentalSpaces(){
+  if((data.rentalSpaces||[]).length)return;
+  const fill=data.properties.find(p=>(p.name||"").includes("62 Fillmore"));
+  const hoyt=data.properties.find(p=>(p.name||"").includes("354 Hoyt"));
+  if(fill)data.rentalSpaces.push({id:uid("space"),propertyId:fill.id,name:"62 Fillmore Garage",spaceType:"Garage",unitLabel:"Garage",status:"Rented",monthlyRent:0,tenantName:"",tenantPhone:"",tenantEmail:"",leaseStart:"",leaseEnd:"",notes:"Restored as a separate rental space."});
+  if(hoyt)data.rentalSpaces.push({id:uid("space"),propertyId:hoyt.id,name:"354 Hoyt Garage",spaceType:"Garage",unitLabel:"Garage",status:"Advertising",monthlyRent:0,tenantName:"",tenantPhone:"",tenantEmail:"",leaseStart:"",leaseEnd:"",notes:"Advertising / available for rent."});
+  localStorage.setItem(KEY,JSON.stringify(data));
+}
+ensureDefaultRentalSpaces();
 const ownerNav=[["overview","⌂","Dashboard"],["properties","▦","Properties"],["rentals","$","Rentals"],["leaseGenerator","✎","Lease Generator"],["tenantAccounts","👤","Tenant Accounts"],["service","🛠","Service Requests"],["marketplace","⚒","Maintenance Marketplace"],["notifications","🔔","Notifications"],["broadcasts","📣","Broadcast Center"],["automation","✦","Automation Agent"],["cameras","◉","Cameras"],["deals","↕","Buy & Sell"],["renovations","◇","Renovations"],["financials","↗","Financials"],["reports","▤","Reports & Tax Export"],["documents","▣","Documents"]]; const tenantNav=[["tenantHome","⌂","Home"],["tenantService","🛠","Maintenance"],["notifications","🔔","Notifications"]]; const contractorNav=[["contractorHome","⌂","Available Jobs"],["contractorMyJobs","⚒","My Jobs"],["contractorProfile","👤","Profile"],["notifications","🔔","Notifications"]];
 function navRender(){
   const nav=currentRole==="tenant"?(tenantSession?tenantNav:[]):currentRole==="contractor"?contractorNav:ownerNav;
@@ -480,17 +490,19 @@ function addExpenseForProperty(propertyId){
   )
 }
 function properties(){setHeader("Properties","All owned assets, occupancy and operating details.");content.innerHTML='<div class="sectionbar"><input class="search" placeholder="Search properties"><button class="btn btn-primary" onclick="addProperty()">＋ Add Property</button></div><div class="propertygrid">'+data.properties.map(propertyCard).join("")+'</div>'}
+
 function rentals(){
-  setHeader("Rentals","Track tenants, monthly rent obligations, split portions, payments and maintenance.");
+  setHeader("Rentals","Track tenants, monthly rent obligations, garages/other spaces, payments and maintenance.");
   const late=(data.rentObligations||[]).filter(r=>rentObligationStatus(r)==="Late").length;
   content.innerHTML=
     '<div class="kpis">'+
-      metric("Tenants",data.tenants.length,"Active tenant records","👥")+
-      metric("Active Leases",data.leases.filter(x=>x.status==="Active").length,"Current agreements","▤")+
+      metric("Tenants",data.tenants.length,"Active apartment/unit tenants","👥")+
+      metric("Rental Spaces",(data.rentalSpaces||[]).length,"Garages, parking and storage","▦")+
       metric("Late Tenant Portions",late,"Needs collection follow-up","!")+ 
       metric("Maintenance",data.maintenance.filter(x=>x.status!=="Completed").length,"Open work orders","◇")+
     '</div>'+
-    '<div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Monthly Rent Collections</b><div class="rowsub">Total rent, government share, tenant share, due date, paid date and balance.</div></div><button class="btn btn-primary" onclick="addRentObligation()">＋ Add Monthly Rent</button></div>'+rentObligationsTable()+'</div>'+
+    '<div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Monthly Rent Collections</b><div class="rowsub">Total rent, government share, tenant share, due date, paid date and balance.</div></div><div class="job-actions"><button class="btn btn-soft" onclick="backfillRentHistory()">Backfill History</button><button class="btn btn-primary" onclick="addRentObligation()">＋ Add Monthly Rent</button></div></div>'+rentObligationsTable()+'</div>'+
+    '<div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Other Rental Spaces</b><div class="rowsub">Garages, parking, storage and other separately rented spaces.</div></div><button class="btn btn-primary" onclick="addRentalSpace()">＋ Add Rental Space</button></div>'+rentalSpacesTable()+'</div>'+
     '<div class="card panel" style="margin-top:16px"><div class="sectionbar"><div><b style="font-size:13px">Payment Ledger</b><div class="rowsub">Actual tenant and agency payments received</div></div><button class="btn btn-primary" onclick="addPayment()">＋ Record Payment</button></div>'+paymentTable()+'</div>'+
     '<div class="mini-grid" style="margin-top:16px"><div class="card mini"><div class="panelhead"><div><h3>Tenants</h3><p>Contacts and units</p></div><button class="btn btn-soft" onclick="addTenant()">Add</button></div>'+tenantList()+'</div>'+
     '<div class="card mini"><div class="panelhead"><div><h3>Leases</h3><p>Dates, rent and status</p></div><button class="btn btn-soft" onclick="addLease()">Add</button></div>'+simpleList(data.leases,x=>tenant(x.tenantId)?.name||"Lease",x=>money(x.rent)+" · "+x.status)+'</div>'+
@@ -551,6 +563,7 @@ function deleteProperty(id){
 }
 function simpleList(arr,title,sub){return arr.length?arr.slice(0,4).map(x=>'<div class="kv"><div><b>'+esc(title(x))+'</b><div class="rowsub">'+esc(sub(x)||"")+'</div></div></div>').join(""):'<div class="empty">Nothing here yet.</div>'}
 function rentObligationStatus(r){
+  if(r.historyStatus==="Unknown")return "Unknown";
   const portion=+r.tenantPortion||0, paid=+r.tenantAmountPaid||0;
   if(portion<=0 || paid>=portion)return "Paid";
   const due=r.tenantDueDate?new Date(r.tenantDueDate+"T23:59:59"):null;
@@ -559,6 +572,68 @@ function rentObligationStatus(r){
   return "Due";
 }
 function rentTenantBalance(r){return Math.max(0,(+r.tenantPortion||0)-(+r.tenantAmountPaid||0))}
+
+function monthRange(startMonth,endMonth){
+  const out=[]; if(!startMonth||!endMonth)return out;
+  let a=startMonth.split("-").map(Number),b=endMonth.split("-").map(Number),y=a[0],m=a[1];
+  while(y<b[0]||(y===b[0]&&m<=b[1])){out.push(y+"-"+String(m).padStart(2,"0"));m++;if(m>12){m=1;y++}}
+  return out;
+}
+function backfillRentHistory(){
+  const tenantOptions='<option value="">Select tenant</option>'+data.tenants.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+' · '+esc(prop(t.propertyId)?.name||"")+' · '+esc(t.unit||"")+'</option>').join("");
+  const now=new Date(),end=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  modal("Backfill Rent History","HISTORICAL RENT DATA",
+    '<div class="field"><label>Tenant</label><select name="tenantId">'+tenantOptions+'</select></div>'+
+    field("Start month","startMonth","month",'value="2026-01"')+
+    field("End month","endMonth","month",'value="'+end+'"')+
+    select("Historical tenant payment status","historyStatus",'<option value="Unknown">Unknown / review later</option><option value="Paid">Paid amount only</option><option value="Due">Unpaid / due</option>')+
+    '<div class="field full"><div class="privacy-note">Uses the tenant profile rent split and due day. Existing months are skipped so records are not duplicated.</div></div>',
+    o=>{
+      const t=tenant(o.tenantId);if(!t){alert("Choose a tenant.");return}
+      const months=monthRange(o.startMonth,o.endMonth);if(!months.length){alert("Choose a valid month range.");return}
+      let added=0;
+      months.forEach(m=>{
+        if((data.rentObligations||[]).some(r=>r.tenantId===t.id&&(r.rentMonth||"").slice(0,7)===m))return;
+        const day=Math.min(+t.rentDueDay||1,28),due=m+"-"+String(day).padStart(2,"0");
+        data.rentObligations.push({id:uid("rent"),propertyId:t.propertyId,unit:t.unit||"",tenantId:t.id,rentMonth:m+"-01",totalRent:+t.monthlyRent||0,governmentSource:t.subsidyProgram||"",governmentPortion:+t.governmentPortion||0,tenantPortion:+t.tenantPortion||0,tenantDueDate:due,tenantAmountPaid:o.historyStatus==="Paid"?(+t.tenantPortion||0):0,tenantPaidDate:"",historyStatus:o.historyStatus,notes:"Backfilled historical record"});
+        added++;
+      });
+      save();alert(added+" monthly rent record(s) added. Existing months were skipped.");
+    },"Backfill Months"
+  )
+}
+function rentalSpacesTable(){
+  const rows=data.rentalSpaces||[];
+  if(!rows.length)return '<div class="empty">No garages, parking or storage rentals entered yet.</div>';
+  return '<div class="tablecard"><table><thead><tr><th>Property</th><th>Space</th><th>Type</th><th>Status</th><th>Tenant</th><th>Rent</th><th>Lease</th><th></th></tr></thead><tbody>'+
+    rows.map(s=>'<tr><td>'+esc(prop(s.propertyId)?.name||"")+'</td><td class="rowtitle">'+esc(s.name||s.unitLabel||"Rental Space")+'</td><td>'+esc(s.spaceType||"Garage")+'</td><td><span class="status '+(s.status==="Rented"?"good":"warn")+'">'+esc(s.status||"Available")+'</span></td><td>'+esc(s.tenantName||"—")+'</td><td>'+money(s.monthlyRent)+'</td><td>'+esc(s.leaseStart?df(s.leaseStart):"—")+(s.leaseEnd?" – "+esc(df(s.leaseEnd)):"")+'</td><td><button class="btn btn-soft" onclick="editRentalSpace(\''+s.id+'\')">Edit</button></td></tr>').join("")+
+  '</tbody></table></div>';
+}
+function rentalSpaceBody(s){
+  s=s||{};
+  return select("Property","propertyId",data.properties.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===s.propertyId?"selected":"")+'>'+esc(p.name)+'</option>').join(""))+
+    field("Space name","name","text",'value="'+esc(s.name||"")+'"')+
+    select("Type","spaceType",'<option>Garage</option><option>Parking</option><option>Storage</option><option>Other</option>')+
+    field("Unit / label","unitLabel","text",'value="'+esc(s.unitLabel||"")+'"')+
+    select("Status","status",'<option>Available</option><option>Advertising</option><option>Rented</option><option>Reserved</option><option>Offline</option>')+
+    field("Monthly rent","monthlyRent","number",'min="0" step="0.01" value="'+(+s.monthlyRent||0)+'"')+
+    field("Tenant name","tenantName","text",'value="'+esc(s.tenantName||"")+'"')+
+    field("Tenant phone","tenantPhone","text",'value="'+esc(s.tenantPhone||"")+'"')+
+    field("Tenant email","tenantEmail","email",'value="'+esc(s.tenantEmail||"")+'"')+
+    field("Lease start","leaseStart","date",'value="'+esc(s.leaseStart||"")+'"')+
+    field("Lease end","leaseEnd","date",'value="'+esc(s.leaseEnd||"")+'"')+
+    area("Notes","notes");
+}
+function addRentalSpace(){
+  modal("Add Rental Space","GARAGE / PARKING / STORAGE",rentalSpaceBody({}),async o=>{
+    const row={id:uid("space"),...o,monthlyRent:+o.monthlyRent||0};data.rentalSpaces.push(row);save();
+    if(cloudUser&&["owner","admin"].includes(cloudProfileRole)){const ins=await supabaseClient.from("rental_spaces").insert({owner_id:cloudUser.id,property_id:o.propertyId,name:o.name,space_type:o.spaceType||"Garage",unit_label:o.unitLabel||null,status:o.status||"Available",monthly_rent:+o.monthlyRent||0,tenant_name:o.tenantName||null,tenant_phone:o.tenantPhone||null,tenant_email:o.tenantEmail||null,lease_start:o.leaseStart||null,lease_end:o.leaseEnd||null,notes:o.notes||null});if(ins.error)alert("Saved on this device, but cloud sync failed: "+ins.error.message)}
+  },"Add Rental Space")
+}
+function editRentalSpace(id){
+  const s=(data.rentalSpaces||[]).find(x=>x.id===id);if(!s)return;
+  modal("Edit Rental Space","GARAGE / PARKING / STORAGE",rentalSpaceBody(s),o=>{Object.assign(s,{...o,monthlyRent:+o.monthlyRent||0});save();},"Update Rental Space")
+}
 function rentObligationsTable(propertyId){
   let rows=(data.rentObligations||[]);
   if(propertyId)rows=rows.filter(r=>r.propertyId===propertyId);
@@ -661,7 +736,7 @@ function reports(){
   const recordedIncome=paid.reduce((a,b)=>a+(+b.amount||0),0);
   const scheduledIncome=data.properties.reduce((sum,p)=>{
     const leaseRent=data.leases.filter(l=>l.propertyId===p.id&&l.status==="Active").reduce((a,b)=>a+(+b.rent||0),0);
-    return sum+(leaseRent||(+p.rent||0));
+    const spaceRent=(data.rentalSpaces||[]).filter(s=>s.propertyId===p.id&&s.status==="Rented").reduce((a,b)=>a+(+b.monthlyRent||0),0);return sum+(leaseRent||(+p.rent||0))+spaceRent;
   },0);
   const expenses=data.expenses.reduce((a,b)=>a+(+b.amount||0),0);
   const noi=recordedIncome-expenses;
@@ -932,7 +1007,7 @@ function cameras(){setHeader("Cameras","Owner-only property camera dashboard.");
 function switchRole(role){currentRole=role;localStorage.setItem("propertyworks_role",role);view=role==="tenant"?(tenantSession?"tenantHome":"tenantAuth"):role==="contractor"?"contractorHome":"overview";render()}
 function render(){navRender();const routes=currentRole==="tenant"?{tenantAuth,tenantHome,tenantService,notifications,accountCenter}:currentRole==="contractor"?{contractorHome,contractorMyJobs,contractorProfile,notifications,accountCenter}:{overview,properties,rentals,leaseGenerator,tenantAccounts,service,marketplace,notifications,broadcasts,automation,cameras,deals,renovations,financials,reports,documents,accountCenter};(routes[view]|| (currentRole==="tenant"?(tenantSession?tenantHome:tenantAuth):currentRole==="contractor"?contractorHome:overview))()}function setView(v){view=v;render()}
 function opts(arr){return arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join("")}function field(label,name,type="text",extra=""){return '<div class="field"><label>'+label+'</label><input name="'+name+'" type="'+type+'" '+extra+'></div>'}function select(label,name,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options+'</select></div>'}function area(label,name){return '<div class="field full"><label>'+label+'</label><textarea name="'+name+'"></textarea></div>'}function modal(title,eyebrow,body,fn,submitLabel="Save"){if(title==="Admin Sign In")submitLabel="Sign In";modalTitle.textContent=title;modalEyebrow.textContent=eyebrow;modalBody.innerHTML='<div class="formgrid">'+body+'</div>';const sb=document.getElementById("modalSubmitBtn");if(sb)sb.textContent=submitLabel;dlg.showModal();form.onsubmit=async e=>{e.preventDefault();const btn=document.getElementById("modalSubmitBtn");if(btn){btn.disabled=true;btn.textContent=submitLabel==="Sign In"?"Signing In…":submitLabel==="Create Account"?"Creating…":submitLabel==="Activate Admin"?"Activating…":submitLabel;}try{await fn(Object.fromEntries(new FormData(e.target).entries()));}finally{if(btn){btn.disabled=false;btn.textContent=submitLabel}if(dlg.open)dlg.close();}}}
-function quickAdd(){modal("What do you want to add?","QUICK ADD",select("Record type","kind",'<option value="property">Property</option><option value="payment">Rent payment</option><option value="tenant">Tenant</option><option value="lease">Lease</option><option value="service">Tenant service request</option><option value="invite">Tenant invitation</option><option value="contractor">Contractor profile</option><option value="deal">Buy/Sell deal</option><option value="reno">Renovation</option><option value="expense">Expense</option><option value="document">Document</option>'),o=>setTimeout(()=>({property:addProperty,payment:addPayment,tenant:addTenant,lease:addLease,service:tenantRepairForm,invite:createTenantInvite,contractor:contractorProfileForm,deal:addDeal,reno:addRenovation,expense:addExpense,document:addDocument}[o.kind]()),40))}
+function quickAdd(){modal("What do you want to add?","QUICK ADD",select("Record type","kind",'<option value="property">Property</option><option value="payment">Rent payment</option><option value="tenant">Tenant</option><option value="lease">Lease</option><option value="service">Tenant service request</option><option value="invite">Tenant invitation</option><option value="contractor">Contractor profile</option><option value="deal">Buy/Sell deal</option><option value="reno">Renovation</option><option value="expense">Expense</option><option value="rentalSpace">Garage / Rental Space</option><option value="backfill">Backfill Rent History</option><option value="document">Document</option>'),o=>setTimeout(()=>({property:addProperty,payment:addPayment,tenant:addTenant,lease:addLease,service:tenantRepairForm,invite:createTenantInvite,contractor:contractorProfileForm,deal:addDeal,reno:addRenovation,expense:addExpense,rentalSpace:addRentalSpace,backfill:backfillRentHistory,document:addDocument}[o.kind]()),40))}
 function addProperty(){modal("Add Property","PROPERTY",field("Name","name")+field("Address","address")+field("Type","type")+field("Units","units","number",'min="1" value="1"')+field("Occupied units","occupied","number",'min="0" value="0"')+field("Monthly rent","rent","number",'min="0"'),o=>{data.properties.push({id:uid("p"),...o,units:+o.units,occupied:+o.occupied,rent:+o.rent||0});save()})}
 function editProperty(id){
   const p=data.properties.find(x=>x.id===id); if(!p)return;
