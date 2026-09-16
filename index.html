@@ -46,11 +46,11 @@ const SUPABASE_PUBLISHABLE_KEY="sb_publishable_ghGJ8MN9flcJafOSeDbwNQ_7kO7Jc10";
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 let cloudUser=null; let cloudProfileRole=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
-let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}
+let data=sanitizePortfolio(load()),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}
 const LOCAL_BACKUPS=["propertyworks_backup_1","propertyworks_backup_2","propertyworks_backup_3"];
 function mergeRecords(base,incoming,keyFn){
-  const out=[...(base||[])],seen=new Set(out.map(keyFn).filter(Boolean));
-  for(const item of (incoming||[])){const k=keyFn(item);if(k&&!seen.has(k)){out.push(item);seen.add(k)}}
+  const out=[...(Array.isArray(base)?base:[])],seen=new Set(out.map(keyFn).filter(Boolean));
+  for(const item of (Array.isArray(incoming)?incoming:[])){const k=keyFn(item);if(k&&!seen.has(k)){out.push(item);seen.add(k)}}
   return out
 }
 function mergePortfolio(base,incoming){
@@ -62,19 +62,26 @@ function mergePortfolio(base,incoming){
   ["tenants","leases","payments","expenses","maintenance","deals","renovations","documents","contractors","bids","notifications","generatedLeases","rentObligations","rentalSpaces"].forEach(k=>{out[k]=mergeRecords(base[k],incoming[k],byId)});
   return out
 }
+function sanitizePortfolio(d){
+  if(!d||typeof d!=="object"||Array.isArray(d))d=structuredClone(seed);
+  const arrayKeys=["properties","tenants","leases","payments","expenses","maintenance","deals","renovations","documents","chart","contractors","bids","notifications","generatedLeases","rentObligations","rentalSpaces"];
+  for(const k of arrayKeys)if(!Array.isArray(d[k]))d[k]=[];
+  d.properties=d.properties.filter(p=>p&&typeof p==="object").map(p=>({id:p.id||uid("p"),name:p.name||"Unnamed Property",address:p.address||"",type:p.type||"",units:+p.units||1,occupied:+p.occupied||0,rent:+p.rent||0,...p}));
+  return d
+}
 function load(){
-  let current;
-  try{current=JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){current=structuredClone(seed)}
-  const candidates=[];
-  for(const k of LOCAL_BACKUPS){try{const v=JSON.parse(localStorage.getItem(k)||"null");if(v)candidates.push(v)}catch(e){}}
   try{
-    for(let i=0;i<localStorage.length;i++){
-      const k=localStorage.key(i);
-      if(k&&/^propertyworks_v\d+$/.test(k)&&k!==KEY){try{const v=JSON.parse(localStorage.getItem(k)||"null");if(v)candidates.push(v)}catch(e){}}
-    }
-  }catch(e){}
-  for(const old of candidates)current=mergePortfolio(current,old);
-  return current
+    const raw=localStorage.getItem(KEY);
+    return sanitizePortfolio(raw?JSON.parse(raw):structuredClone(seed));
+  }catch(e){
+    try{
+      for(const k of LOCAL_BACKUPS){
+        const raw=localStorage.getItem(k);
+        if(raw)return sanitizePortfolio(JSON.parse(raw));
+      }
+    }catch(e2){}
+    return sanitizePortfolio(structuredClone(seed));
+  }
 }
 async function writeCloudSnapshot(){
   if(!cloudUser||!["owner","admin"].includes(cloudProfileRole))return;
@@ -1148,6 +1155,14 @@ function addExpense(){modal("Add Expense","FINANCIALS",
   area("Description / tax notes","description"),
   async o=>{const row={id:uid("e"),...o,amount:+o.amount||0};data.expenses.unshift(row);save();if(cloudUser&&["owner","admin"].includes(cloudProfileRole)){const desc=[o.description,o.paidBy?"Paid by: "+o.paidBy:"",o.frequency?"Frequency: "+o.frequency:"",o.billingPeriod?"Period: "+o.billingPeriod:""].filter(Boolean).join(" | ");const ins=await supabaseClient.from("expenses").insert({owner_id:cloudUser.id,property_id:o.propertyId,expense_date:o.date||new Date().toISOString().slice(0,10),category:o.category||"Other",vendor:o.vendor||null,amount:+o.amount||0,description:desc||null});if(ins.error)alert("Saved on this device, but cloud sync failed: "+ins.error.message)}},"Add Expense")}
 function addDocument(){modal("Add Document","DOCUMENT",field("Name","name")+select("Property","propertyId",opts(data.properties))+select("Type","type","<option>Lease</option><option>Contract</option><option>Notice</option><option>Receipt / Invoice</option><option>Insurance</option><option>Tax</option><option>Other</option>")+field("Date","date","date")+area("Notes","notes"),o=>{data.documents.unshift({id:uid("d"),...o});save()})}
-function exportData(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download="propertyworks-backup.json";a.click()}if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"))}render();initCloud();
+function exportData(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download="propertyworks-backup.json";a.click()}if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"))}try{
+  data=sanitizePortfolio(data);
+  render();
+  initCloud().catch(e=>console.error("Cloud init failed",e));
+}catch(e){
+  console.error("PropertyWorks startup failed",e);
+  const root=document.getElementById("content")||document.body;
+  root.innerHTML='<div style="padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"><h2>PropertyWorks Recovery Mode</h2><p>The app found a startup problem but your saved data was not deleted.</p><button onclick="localStorage.removeItem(\'propertyworks_role\');location.reload()" style="padding:12px 16px;border:0;border-radius:10px;background:#075fa8;color:#fff;font-weight:700">Reload Dashboard</button><p style="margin-top:16px;font-size:12px;color:#64748b">'+String(e.message||e)+'</p></div>';
+}
 </script>
 </body></html>
