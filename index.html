@@ -46,7 +46,58 @@ const SUPABASE_PUBLISHABLE_KEY="sb_publishable_ghGJ8MN9flcJafOSeDbwNQ_7kO7Jc10";
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 let cloudUser=null; let cloudProfileRole=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
-let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}
+const LOCAL_BACKUPS=["propertyworks_backup_1","propertyworks_backup_2","propertyworks_backup_3"];
+function mergeRecords(base,incoming,keyFn){
+  const out=[...(base||[])],seen=new Set(out.map(keyFn).filter(Boolean));
+  for(const item of (incoming||[])){const k=keyFn(item);if(k&&!seen.has(k)){out.push(item);seen.add(k)}}
+  return out
+}
+function mergePortfolio(base,incoming){
+  if(!incoming)return base;
+  const out={...base};
+  const byId=x=>x?.id||"";
+  const propKey=p=>p?.id||((p?.name||"")+"|"+(p?.address||"")).toLowerCase();
+  out.properties=mergeRecords(base.properties,incoming.properties,propKey);
+  ["tenants","leases","payments","expenses","maintenance","deals","renovations","documents","contractors","bids","notifications","generatedLeases","rentObligations","rentalSpaces"].forEach(k=>{out[k]=mergeRecords(base[k],incoming[k],byId)});
+  return out
+}
+function load(){
+  let current;
+  try{current=JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){current=structuredClone(seed)}
+  const candidates=[];
+  for(const k of LOCAL_BACKUPS){try{const v=JSON.parse(localStorage.getItem(k)||"null");if(v)candidates.push(v)}catch(e){}}
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k&&/^propertyworks_v\d+$/.test(k)&&k!==KEY){try{const v=JSON.parse(localStorage.getItem(k)||"null");if(v)candidates.push(v)}catch(e){}}
+    }
+  }catch(e){}
+  for(const old of candidates)current=mergePortfolio(current,old);
+  return current
+}
+async function writeCloudSnapshot(){
+  if(!cloudUser||!["owner","admin"].includes(cloudProfileRole))return;
+  try{
+    const {error}=await supabaseClient.from("portfolio_snapshots").upsert({owner_id:cloudUser.id,snapshot:data,updated_at:new Date().toISOString()},{onConflict:"owner_id"});
+    if(error)console.error("Cloud backup failed",error);
+  }catch(e){console.error("Cloud backup failed",e)}
+}
+function save(){
+  try{
+    const prev=localStorage.getItem(KEY);
+    if(prev){
+      const b2=localStorage.getItem(LOCAL_BACKUPS[1]),b1=localStorage.getItem(LOCAL_BACKUPS[0]);
+      if(b2)localStorage.setItem(LOCAL_BACKUPS[2],b2);
+      if(b1)localStorage.setItem(LOCAL_BACKUPS[1],b1);
+      localStorage.setItem(LOCAL_BACKUPS[0],prev);
+    }
+  }catch(e){}
+  localStorage.setItem(KEY,JSON.stringify(data));
+  writeCloudSnapshot();
+  render()
+}
+const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 
 function ensureDefaultRentalSpaces(){
   if((data.rentalSpaces||[]).length)return;
@@ -85,11 +136,13 @@ async function initCloud(){
   if(cloudUser) await loadCloudProfile();
   updateCloudButton();
   if(cloudUser && ["owner","admin"].includes(cloudProfileRole)){
+    await reconcileCloudSnapshot();
     subscribeRealtime();
   }
   supabaseClient.auth.onAuthStateChange(async(event,session)=>{
     cloudUser=session?.user||null;
     if(cloudUser) await loadCloudProfile(); else cloudProfileRole=null;
+    if(cloudUser&&["owner","admin"].includes(cloudProfileRole))await reconcileCloudSnapshot();
     updateCloudButton();
     if(view==="accountCenter") render();
   });
@@ -112,7 +165,7 @@ function accountCenter(){
   const pendingEmail=localStorage.getItem("propertyworks_pending_admin_email")||"";
   let statusHtml="";
   if(cloudUser && ["owner","admin"].includes(cloudProfileRole)){
-    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Signed In</h3><p>'+esc(cloudUser.email||"Admin account")+'</p></div><span class="chip good">Admin Active</span></div><div class="kv"><span>Profile</span><b>'+esc(cloudProfileRole||"admin")+'</b></div><div class="job-actions"><button class="btn btn-soft" onclick="cloudPullOwnerData()">Sync Now</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
+    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Signed In</h3><p>'+esc(cloudUser.email||"Admin account")+'</p></div><span class="chip good">Admin Active</span></div><div class="kv"><span>Profile</span><b>'+esc(cloudProfileRole||"admin")+'</b></div><div class="job-actions"><button class="btn btn-soft" onclick="reconcileCloudSnapshot()">Sync / Recover</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
   }else if(cloudUser){
     statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Account Needs Activation</h3><p>'+esc(cloudUser.email||"")+'</p></div><span class="chip warn">Pending</span></div><div class="privacy-note">Your account exists. Activate admin access with the Jeff/Lana setup code. You do not need to create another account.</div><div class="job-actions"><button class="btn btn-primary" onclick="adminActivationModal()">Activate Admin</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
   }else if(pending){
@@ -288,36 +341,18 @@ async function cloudPushLocalData(){
   await cloudPullOwnerData();
 }
 async function cloudPullOwnerData(){
-  if(!cloudUser)return;
-  const ownerId=cloudUser.id;
-  const [pr,pa,ex,mr,re,de]=await Promise.all([
-    supabaseClient.from("properties").select("*").eq("owner_id",ownerId).order("created_at"),
-    supabaseClient.from("payments").select("*").eq("owner_id",ownerId).order("payment_date",{ascending:false}),
-    supabaseClient.from("expenses").select("*").eq("owner_id",ownerId).order("expense_date",{ascending:false}),
-    supabaseClient.from("maintenance_requests").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false}),
-    supabaseClient.from("renovations").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false}),
-    supabaseClient.from("deals").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false})
-  ]);
-  const err=[pr,pa,ex,mr,re,de].find(x=>x.error)?.error;
-  if(err){console.error(err);return}
-  if(pr.data?.length)data.properties=pr.data.map(p=>({id:p.id,name:p.name,address:p.address,type:p.property_type||"",units:p.units,occupied:p.occupied_units,rent:+p.scheduled_monthly_rent||0}));
-  data.payments=(pa.data||[]).map(x=>({id:x.id,propertyId:x.property_id,date:x.payment_date,source:x.source,amount:+x.amount||0,status:x.status,unit:x.unit||"",notes:x.notes||""}));
-  data.expenses=(ex.data||[]).map(x=>({id:x.id,propertyId:x.property_id,date:x.expense_date,category:x.category,vendor:x.vendor||"",amount:+x.amount||0,description:x.description||""}));
-  data.maintenance=(mr.data||[]).map(x=>({id:x.id,propertyId:x.property_id,unit:x.unit||"",title:x.title,description:x.description||"",priority:x.priority,status:x.status,marketplaceStatus:x.marketplace_status,paymentStatus:x.payment_status,paymentMethod:x.payment_method}));
-  data.renovations=(re.data||[]).map(x=>({id:x.id,propertyId:x.property_id,name:x.name,budget:+x.budget||0,spent:+x.spent||0,contractor:x.contractor||"",status:x.status}));
-  data.deals=(de.data||[]).map(x=>({id:x.id,name:x.name,type:x.deal_type||"",address:x.address||"",price:+x.price||0,stage:x.stage||"",notes:x.notes||""}));
-  localStorage.setItem(KEY,JSON.stringify(data));render();
+  await reconcileCloudSnapshot();
 }
 function subscribeRealtime(){
   if(!cloudUser||window._pwRealtime)return;
   window._pwRealtime=supabaseClient.channel("propertyworks-live")
-    .on("postgres_changes",{event:"*",schema:"public",table:"maintenance_requests"},()=>cloudPullOwnerData())
+    .on("postgres_changes",{event:"*",schema:"public",table:"maintenance_requests"},()=>render())
     .on("postgres_changes",{event:"*",schema:"public",table:"job_bids"},()=>{notifyParty("owner","Bid activity","A contractor bid changed in the marketplace.");render()})
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"user_id=eq."+cloudUser.id},payload=>{
       const n=payload.new;try{if(Notification.permission==="granted")new Notification(n.title,{body:n.message})}catch(e){}
     }).subscribe();
 }
-function notifyParty(party,title,message,meta={}){data.notifications.unshift({id:uid("n"),party,title,message,date:new Date().toISOString(),read:false,...meta});localStorage.setItem(KEY,JSON.stringify(data));try{if(Notification.permission==="granted"){new Notification(title,{body:message})}}catch(e){}}
+function notifyParty(party,title,message,meta={}){data.notifications.unshift({id:uid("n"),party,title,message,date:new Date().toISOString(),read:false,...meta});localStorage.setItem(KEY,JSON.stringify(data));writeCloudSnapshot();try{if(Notification.permission==="granted"){new Notification(title,{body:message})}}catch(e){}}
 function requestDeviceNotifications(){if(!("Notification" in window)){alert("Notifications are not supported in this browser.");return}Notification.requestPermission().then(p=>alert(p==="granted"?"Notifications enabled.":"Notifications were not enabled."))}
 function notifications(){setHeader("Notifications","Updates for maintenance, bids, scheduling, completion and payment.");const roleParty=currentRole==="owner"?"owner":currentRole==="tenant"?"tenant":"contractor";const items=(data.notifications||[]).filter(n=>n.party===roleParty||n.party==="all");content.innerHTML='<div class="sectionbar"><div><b style="font-size:13px">Notification Center</b><div class="rowsub">Keep every party updated through the repair workflow.</div></div><button class="btn btn-primary" onclick="requestDeviceNotifications()">Enable Device Notifications</button></div><div class="card panel">'+(items.length?items.map(n=>'<div class="attnitem"><div class="attnicon">🔔</div><div class="attntext"><b>'+esc(n.title)+'</b><span>'+esc(n.message)+'</span></div><div class="attnright">'+new Date(n.date).toLocaleString()+'</div></div>').join(""):'<div class="empty">No notifications yet.</div>')+'</div>'}
 
