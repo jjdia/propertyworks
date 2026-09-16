@@ -46,7 +46,44 @@ const SUPABASE_PUBLISHABLE_KEY="sb_publishable_ghGJ8MN9flcJafOSeDbwNQ_7kO7Jc10";
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 let cloudUser=null; let cloudProfileRole=null;
 const seed={properties:[{id:"p1",name:"62 Fillmore",address:"62 Fillmore Street, Staten Island, NY 10301",type:"Two-Family",units:2,occupied:2,rent:7600},{id:"p2",name:"48 Jackson",address:"48 Jackson Street, Staten Island, NY",type:"Two-Family",units:2,occupied:2,rent:0},{id:"p3",name:"354 Hoyt",address:"354 Hoyt Avenue, Staten Island, NY",type:"Multi-Family",units:3,occupied:3,rent:0}],tenants:[],leases:[],payments:[],expenses:[],maintenance:[{id:"m1",propertyId:"p1",title:"Common-area safety check",unit:"Common",priority:"High",status:"Open",date:"2026-09-14"}],deals:[],renovations:[],documents:[{id:"d1",propertyId:"p3",name:"Fully Executed Contract of Sale",type:"Contract",date:"2026-09-14",notes:"354 Hoyt Avenue"}],chart:[{m:"Apr",i:14500,e:6600},{m:"May",i:15800,e:7000},{m:"Jun",i:16600,e:7400},{m:"Jul",i:17200,e:7200},{m:"Aug",i:18000,e:7600},{m:"Sep",i:18000,e:7900}],contractors:[],bids:[]};
-let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){return structuredClone(seed)}}function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+let data=load(),view="overview",currentRole=localStorage.getItem("propertyworks_role")||"owner"; data.contractors=data.contractors||[]; data.bids=data.bids||[]; data.notifications=data.notifications||[]; data.generatedLeases=data.generatedLeases||[]; data.rentObligations=data.rentObligations||[]; data.rentalSpaces=data.rentalSpaces||[]; data.automation=data.automation||{autoNotifyContractors:true,autoPrepareSocial:true,autoNotifyOwner:true,autoNotifyTenant:true}; const AUTHKEY="propertyworks_auth_v1"; let authData=loadAuth(); let tenantSession=JSON.parse(localStorage.getItem("propertyworks_tenant_session")||"null"); function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))||{invites:[],accounts:[]}}catch(e){return {invites:[],accounts:[]}}} function saveAuth(){localStorage.setItem(AUTHKEY,JSON.stringify(authData))}function load(){
+  let current;
+  try{current=JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch(e){current=structuredClone(seed)}
+  try{
+    const seenProps=new Set((current.properties||[]).map(p=>((p.name||"")+"|"+(p.address||"")).toLowerCase()));
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k||!/^propertyworks_v\d+$/.test(k)||k===KEY)continue;
+      let oldData=null;try{oldData=JSON.parse(localStorage.getItem(k)||"null")}catch(e){}
+      if(!oldData||!Array.isArray(oldData.properties))continue;
+      for(const p of oldData.properties){
+        const sig=((p.name||"")+"|"+(p.address||"")).toLowerCase();
+        if(sig&& !seenProps.has(sig)){
+          current.properties=current.properties||[];
+          current.properties.push({...p,recoveredFrom:k});
+          seenProps.add(sig);
+        }
+      }
+    }
+  }catch(e){}
+  return current
+}
+let _snapshotTimer=null;
+function queueCloudSnapshot(){
+  if(!cloudUser||!["owner","admin"].includes(cloudProfileRole))return;
+  clearTimeout(_snapshotTimer);
+  _snapshotTimer=setTimeout(async()=>{
+    try{
+      const {error}=await supabaseClient.from("portfolio_snapshots").upsert({owner_id:cloudUser.id,snapshot:data,updated_at:new Date().toISOString()},{onConflict:"owner_id"});
+      if(error)console.error("Portfolio snapshot failed",error);
+    }catch(e){console.error("Portfolio snapshot failed",e)}
+  },800);
+}
+function save(){
+  localStorage.setItem(KEY,JSON.stringify(data));
+  queueCloudSnapshot();
+  render()
+}const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(+n||0),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c])),uid=p=>p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),prop=id=>data.properties.find(x=>x.id===id),tenant=id=>data.tenants.find(x=>x.id===id),df=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 
 function ensureDefaultRentalSpaces(){
   if((data.rentalSpaces||[]).length)return;
@@ -86,6 +123,7 @@ async function initCloud(){
   updateCloudButton();
   if(cloudUser && ["owner","admin"].includes(cloudProfileRole)){
     subscribeRealtime();
+    queueCloudSnapshot();
   }
   supabaseClient.auth.onAuthStateChange(async(event,session)=>{
     cloudUser=session?.user||null;
@@ -112,7 +150,7 @@ function accountCenter(){
   const pendingEmail=localStorage.getItem("propertyworks_pending_admin_email")||"";
   let statusHtml="";
   if(cloudUser && ["owner","admin"].includes(cloudProfileRole)){
-    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Signed In</h3><p>'+esc(cloudUser.email||"Admin account")+'</p></div><span class="chip good">Admin Active</span></div><div class="kv"><span>Profile</span><b>'+esc(cloudProfileRole||"admin")+'</b></div><div class="job-actions"><button class="btn btn-soft" onclick="cloudPullOwnerData()">Sync Now</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
+    statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Signed In</h3><p>'+esc(cloudUser.email||"Admin account")+'</p></div><span class="chip good">Admin Active</span></div><div class="kv"><span>Profile</span><b>'+esc(cloudProfileRole||"admin")+'</b></div><div class="job-actions"><button class="btn btn-soft" onclick="queueCloudSnapshot();alert('Portfolio backup queued to cloud.')">Backup Now</button><button class="btn btn-soft" onclick="restoreCloudSnapshot()">Restore Cloud Snapshot</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
   }else if(cloudUser){
     statusHtml='<div class="card panel"><div class="panelhead"><div><h3>Account Needs Activation</h3><p>'+esc(cloudUser.email||"")+'</p></div><span class="chip warn">Pending</span></div><div class="privacy-note">Your account exists. Activate admin access with the Jeff/Lana setup code. You do not need to create another account.</div><div class="job-actions"><button class="btn btn-primary" onclick="adminActivationModal()">Activate Admin</button><button class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div></div>';
   }else if(pending){
@@ -237,11 +275,22 @@ function adminActivationModal(){
     "Activate Admin"
   )
 }
+
+async function restoreCloudSnapshot(){
+  if(!cloudUser){alert("Sign in first.");return}
+  const {data:snap,error}=await supabaseClient.from("portfolio_snapshots").select("snapshot,updated_at").eq("owner_id",cloudUser.id).maybeSingle();
+  if(error){alert("Could not load cloud backup: "+error.message);return}
+  if(!snap?.snapshot){alert("No cloud portfolio backup exists yet.");return}
+  if(!confirm("Restore the latest cloud snapshot from "+new Date(snap.updated_at).toLocaleString()+"? This will replace the current on-device portfolio with that backup."))return;
+  data=snap.snapshot;
+  data.contractors=data.contractors||[];data.bids=data.bids||[];data.notifications=data.notifications||[];data.generatedLeases=data.generatedLeases||[];data.rentObligations=data.rentObligations||[];data.rentalSpaces=data.rentalSpaces||[];
+  localStorage.setItem(KEY,JSON.stringify(data));render();alert("Cloud snapshot restored.");
+}
 function cloudConnectedModal(){
   modal("PropertyWorks Cloud","CONNECTED",
     '<div class="field full"><div class="privacy-note"><b>'+esc(cloudUser?.email||"")+'</b><br>Cloud database, authentication and storage are connected.</div></div>'+
-    '<div class="field full"><button type="button" class="btn btn-primary" onclick="cloudPushLocalData()">Upload Current Portfolio to Cloud</button></div>'+
-    '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudPullOwnerData()">Refresh From Cloud</button></div>'+
+    '<div class="field full"><button type="button" class="btn btn-primary" onclick="queueCloudSnapshot();alert(\'Portfolio backup queued to cloud.\')">Backup Current Portfolio</button></div>'+
+    '<div class="field full"><button type="button" class="btn btn-soft" onclick="restoreCloudSnapshot()">Restore Cloud Snapshot</button></div>'+
     '<div class="field full"><button type="button" class="btn btn-soft" onclick="cloudSignOut()">Sign Out</button></div>',
     ()=>{}
   )
